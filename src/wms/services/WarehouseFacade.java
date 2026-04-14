@@ -10,44 +10,51 @@ import wms.exceptions.WMSException;
  */
 public class WarehouseFacade extends WarehouseSubsystemBase {
 
+    // Dependency Injection of our new manager
+    private InventoryManager inventoryManager;
+
     public WarehouseFacade(IWMSRepository repository) {
         super(repository);
+        this.inventoryManager = new InventoryManager();
     }
 
+    /**
+     * Hook for Subsystem 4 (Order Fulfillment).
+     */
     @Override
     public boolean reserveStockForOrder(String sku, int quantity) {
-        System.out.println("Facade: Checking stock for SKU: " + sku);
-        // We will implement the actual logic later using Strategy pattern
-        return true; 
+        System.out.println("Facade: Subsystem 4 (Order Fulfillment) requesting " + quantity + " units of " + sku);
+        try {
+            return inventoryManager.reserveStock(sku, quantity);
+        } catch (WMSException e) {
+            // We do not cancel the order ourselves; we just log it for Subsystem 17
+            WMSLogger.logError("WarehouseFacade.reserveStockForOrder", e.getMessage());
+            return false;
+        }
     }
 
     @Override
     public void processInboundScan(String barcode, String dockId) {
         try {
             System.out.println("Facade: Processing inbound scan at " + dockId + " for barcode: " + barcode);
-            
-            // Simulating a business rule violation
             if (barcode == null || barcode.isEmpty() || barcode.equals("INVALID")) {
                 throw new WMSException("Invalid barcode scanned. Cannot process inbound.");
             }
-            
-            // Logic for DB integration will go here
             System.out.println("Facade: Scan processed successfully.");
-
         } catch (WMSException e) {
-            // GRASP / SOLID compliance: We do not fix the error, we pass it to Subsystem 17
             WMSLogger.logError("WarehouseFacade.processInboundScan", e.getMessage());
         }
     }
+
     /**
      * Integrates the Strategy Pattern. Decides which algorithm to use based on product type.
+     * UPDATED to include quantity and update the InventoryManager.
      */
-    public void receiveAndStoreProduct(wms.models.Product product) {
-        System.out.println("Facade: Receiving product - " + product.getName());
+    public void receiveAndStoreProduct(wms.models.Product product, int quantity) {
+        System.out.println("Facade: Receiving product - " + product.getName() + " (Qty: " + quantity + ")");
         
         wms.strategies.IPutawayStrategy putawayStrategy;
 
-        // Context dynamically selects the strategy
         if (product.getCategory() == wms.models.ProductCategory.PERISHABLE_COLD) {
             putawayStrategy = new wms.strategies.ColdChainStrategy();
         } else {
@@ -57,22 +64,19 @@ public class WarehouseFacade extends WarehouseSubsystemBase {
         String assignedBin = putawayStrategy.determineStorageBin(product);
         System.out.println("Facade: Product '" + product.getName() + "' successfully stored in " + assignedBin);
         
-        // Note: Here we would call Subsystem 15's repository to save this to the DB, 
-        // and notify Subsystem 12 (Double-entry Stock Keeping).
+        // UPDATE INVENTORY LEDGER
+        inventoryManager.addStock(product.getSku(), quantity);
     }
+
     /**
      * Integrates the Factory Pattern. Packs a product into a specific storage unit.
      */
     public wms.models.StorageUnit packProduct(wms.models.Product product, wms.models.StorageUnitType unitType, String unitId) {
         System.out.println("Facade: Request received to pack '" + product.getName() + "' into a " + unitType);
-        
-        // Use the Factory to create the container (Creational Pattern)
         wms.models.StorageUnit container = wms.factories.StorageUnitFactory.createStorageUnit(unitType, unitId);
-        
         System.out.println("Facade: Packed into " + container.getClass().getSimpleName() + 
                            " | Tracking Method: " + container.getTrackingMethod() +
                            " | Max Capacity: " + container.getMaxWeightCapacityKg() + "kg");
-        
         return container;
     }
-  }
+}

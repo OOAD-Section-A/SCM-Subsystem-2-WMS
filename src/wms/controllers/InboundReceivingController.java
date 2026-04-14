@@ -36,7 +36,7 @@ public class InboundReceivingController {
             System.out.println("Controller: Validation successful. Handing off to Warehouse Facade for Putaway.");
             
             // If authorized, simulate storing each item (In reality, loop through quantity)
-            wmsFacade.receiveAndStoreProduct(product);
+            wmsFacade.receiveAndStoreProduct(product, quantity);
 
         } catch (WMSException e) {
             // We do NOT store the product. We just log it.

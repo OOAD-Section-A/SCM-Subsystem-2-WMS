@@ -5,9 +5,8 @@ import wms.models.ProductCategory;
 
 public class Main {
     public static void main(String[] args) {
-        System.out.println("--- Starting WMS Putaway Strategy Test ---");
+        System.out.println("--- Starting SCM Subsystem 2 Test ---");
 
-        // Mock Subsystem 15
         IWMSRepository mockDbRepo = new IWMSRepository() {
             public boolean validatePurchaseOrder(String po) { return true; }
             public void recordStockMovement(String sku, String from, String to, int qty) {}
@@ -15,44 +14,30 @@ public class Main {
         };
 
         WarehouseFacade wmsFacade = new WarehouseFacade(mockDbRepo);
-
-        // Create some sample supermarket products
         Product milk = new Product("SKU-DAIRY-1", "Organic Whole Milk", ProductCategory.PERISHABLE_COLD);
-        Product cereal = new Product("SKU-DRY-1", "Corn Flakes", ProductCategory.DRY_GOODS);
 
-        // Test the dynamic strategy routing
-        wmsFacade.receiveAndStoreProduct(milk);
-        System.out.println("--------------------------------------------------");
-        wmsFacade.receiveAndStoreProduct(cereal);
-
-        // Test the Factory Pattern
-        System.out.println("--------------------------------------------------");
-        System.out.println("--- Starting WMS Storage Unit Factory Test ---");
-        wmsFacade.packProduct(milk, wms.models.StorageUnitType.PALLET, "PAL-9901");
-        System.out.println();
-        wmsFacade.packProduct(cereal, wms.models.StorageUnitType.CASE, "CAS-5520");
-
-        // Test Feature 5: Inbound Receiving & Procurement
-        System.out.println("--------------------------------------------------");
-        System.out.println("--- Starting WMS Inbound Receiving Test ---");
-
-        // 1. Setup Procurement Data
+        System.out.println("--- 1. Inbound Receiving Test ---");
         wms.models.Supplier dairyFarm = new wms.models.Supplier("SUP-001", "Green Valley Farms");
         wms.models.PurchaseOrder po = new wms.models.PurchaseOrder("PO-10023", dairyFarm);
-        
-        // We ordered exactly 50 units of Milk
         po.addExpectedItem(milk.getSku(), 50);
 
-        // 2. Setup the Controller
         wms.controllers.InboundReceivingController dockController = new wms.controllers.InboundReceivingController(wmsFacade);
-
-        // 3. Test a valid receipt (Dock worker scans 10 units of milk)
+        
+        // We receive 10 units. This should update our inventory!
         dockController.processArrival(po, milk, 10);
+        
+        System.out.println("\n--- 2. Subsystem 4 (Order Fulfillment) Integration Test ---");
+        
+        // Scenario A: Subsystem 4 asks for 5 milks (We have 10, so this should succeed)
+        boolean order1Success = wmsFacade.reserveStockForOrder(milk.getSku(), 5);
+        System.out.println("Order 1 Fulfillment Status: " + (order1Success ? "SUCCESS" : "FAILED"));
+
         System.out.println();
 
-        // 4. Test an invalid receipt (Dock worker scans cereal, but we only ordered milk!)
-        dockController.processArrival(po, cereal, 5);
+        // Scenario B: Subsystem 4 asks for 20 milks (We only have 5 left, so this should fail and log to Subsystem 17)
+        boolean order2Success = wmsFacade.reserveStockForOrder(milk.getSku(), 20);
+        System.out.println("Order 2 Fulfillment Status: " + (order2Success ? "SUCCESS" : "FAILED"));
 
-        System.out.println("--- Test Complete ---");
+        System.out.println("\n--- Test Complete ---");
     }
 }
