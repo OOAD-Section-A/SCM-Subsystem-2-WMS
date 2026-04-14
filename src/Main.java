@@ -32,6 +32,27 @@ public class Main {
         System.out.println();
         wmsFacade.packProduct(cereal, wms.models.StorageUnitType.CASE, "CAS-5520");
 
+        // Test Feature 5: Inbound Receiving & Procurement
+        System.out.println("--------------------------------------------------");
+        System.out.println("--- Starting WMS Inbound Receiving Test ---");
+
+        // 1. Setup Procurement Data
+        wms.models.Supplier dairyFarm = new wms.models.Supplier("SUP-001", "Green Valley Farms");
+        wms.models.PurchaseOrder po = new wms.models.PurchaseOrder("PO-10023", dairyFarm);
+        
+        // We ordered exactly 50 units of Milk
+        po.addExpectedItem(milk.getSku(), 50);
+
+        // 2. Setup the Controller
+        wms.controllers.InboundReceivingController dockController = new wms.controllers.InboundReceivingController(wmsFacade);
+
+        // 3. Test a valid receipt (Dock worker scans 10 units of milk)
+        dockController.processArrival(po, milk, 10);
+        System.out.println();
+
+        // 4. Test an invalid receipt (Dock worker scans cereal, but we only ordered milk!)
+        dockController.processArrival(po, cereal, 5);
+
         System.out.println("--- Test Complete ---");
     }
 }
