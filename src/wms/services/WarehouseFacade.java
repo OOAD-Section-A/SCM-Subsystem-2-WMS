@@ -39,4 +39,25 @@ public class WarehouseFacade extends WarehouseSubsystemBase {
             WMSLogger.logError("WarehouseFacade.processInboundScan", e.getMessage());
         }
     }
-}
+    /**
+     * Integrates the Strategy Pattern. Decides which algorithm to use based on product type.
+     */
+    public void receiveAndStoreProduct(wms.models.Product product) {
+        System.out.println("Facade: Receiving product - " + product.getName());
+        
+        wms.strategies.IPutawayStrategy putawayStrategy;
+
+        // Context dynamically selects the strategy
+        if (product.getCategory() == wms.models.ProductCategory.PERISHABLE_COLD) {
+            putawayStrategy = new wms.strategies.ColdChainStrategy();
+        } else {
+            putawayStrategy = new wms.strategies.StandardFIFOStrategy();
+        }
+
+        String assignedBin = putawayStrategy.determineStorageBin(product);
+        System.out.println("Facade: Product '" + product.getName() + "' successfully stored in " + assignedBin);
+        
+        // Note: Here we would call Subsystem 15's repository to save this to the DB, 
+        // and notify Subsystem 12 (Double-entry Stock Keeping).
+    }
+  }
