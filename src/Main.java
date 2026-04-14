@@ -1,7 +1,6 @@
 import wms.contracts.IWMSRepository;
 import wms.services.WarehouseFacade;
-import wms.models.Product;
-import wms.models.ProductCategory;
+import wms.models.*;
 
 public class Main {
     public static void main(String[] args) {
@@ -14,29 +13,35 @@ public class Main {
         };
 
         WarehouseFacade wmsFacade = new WarehouseFacade(mockDbRepo);
-        Product milk = new Product("SKU-DAIRY-1", "Organic Whole Milk", ProductCategory.PERISHABLE_COLD);
+        Product milk = new Product("SKU-DAIRY-1", "Organic Milk", ProductCategory.PERISHABLE_COLD);
+        Product cereal = new Product("SKU-DRY-1", "Corn Flakes", ProductCategory.DRY_GOODS);
 
-        System.out.println("--- 1. Inbound Receiving Test ---");
-        wms.models.Supplier dairyFarm = new wms.models.Supplier("SUP-001", "Green Valley Farms");
-        wms.models.PurchaseOrder po = new wms.models.PurchaseOrder("PO-10023", dairyFarm);
-        po.addExpectedItem(milk.getSku(), 50);
+        // 1. Stock the warehouse first!
+        System.out.println("--- 1. Inbound Restocking ---");
+        wmsFacade.receiveAndStoreProduct(milk, 50);
+        wmsFacade.receiveAndStoreProduct(cereal, 50);
 
-        wms.controllers.InboundReceivingController dockController = new wms.controllers.InboundReceivingController(wmsFacade);
+        System.out.println("\n--- 2. Order Picking Test (Subsystem 4 Integration) ---");
         
-        // We receive 10 units. This should update our inventory!
-        dockController.processArrival(po, milk, 10);
+        // Setup Order 1 (Supermarket A needs items quickly)
+        Order order1 = new Order("ORD-9001");
+        order1.addItem(milk.getSku(), 10);
         
-        System.out.println("\n--- 2. Subsystem 4 (Order Fulfillment) Integration Test ---");
+        // Execute with Wave Picking
+        wmsFacade.dispatchOrder(order1, new wms.strategies.WavePickingStrategy());
+
+        // Setup Order 2 (Supermarket B needs a large mixed order)
+        Order order2 = new Order("ORD-9002");
+        order2.addItem(milk.getSku(), 5);
+        order2.addItem(cereal.getSku(), 20);
         
-        // Scenario A: Subsystem 4 asks for 5 milks (We have 10, so this should succeed)
-        boolean order1Success = wmsFacade.reserveStockForOrder(milk.getSku(), 5);
-        System.out.println("Order 1 Fulfillment Status: " + (order1Success ? "SUCCESS" : "FAILED"));
-
-        System.out.println();
-
-        // Scenario B: Subsystem 4 asks for 20 milks (We only have 5 left, so this should fail and log to Subsystem 17)
-        boolean order2Success = wmsFacade.reserveStockForOrder(milk.getSku(), 20);
-        System.out.println("Order 2 Fulfillment Status: " + (order2Success ? "SUCCESS" : "FAILED"));
+        // Execute with Zone Picking
+        wmsFacade.dispatchOrder(order2, new wms.strategies.ZonePickingStrategy());
+        
+        // Setup Order 3 (Fails due to lack of stock!)
+        Order order3 = new Order("ORD-ERROR");
+        order3.addItem(cereal.getSku(), 100);
+        wmsFacade.dispatchOrder(order3, new wms.strategies.WavePickingStrategy());
 
         System.out.println("\n--- Test Complete ---");
     }
