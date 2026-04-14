@@ -25,6 +25,13 @@ public class Main {
         System.out.println("--------------------------------------------------");
         wmsFacade.receiveAndStoreProduct(cereal);
 
+        // Test the Factory Pattern
+        System.out.println("--------------------------------------------------");
+        System.out.println("--- Starting WMS Storage Unit Factory Test ---");
+        wmsFacade.packProduct(milk, wms.models.StorageUnitType.PALLET, "PAL-9901");
+        System.out.println();
+        wmsFacade.packProduct(cereal, wms.models.StorageUnitType.CASE, "CAS-5520");
+
         System.out.println("--- Test Complete ---");
     }
 }
