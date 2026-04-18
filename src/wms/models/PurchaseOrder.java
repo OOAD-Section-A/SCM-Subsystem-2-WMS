@@ -4,49 +4,64 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Description: GRASP Information Expert. Holds the expected line items and 
- * validates if incoming goods match what was ordered.
+ * Description: GRASP Information Expert.
  */
+
 public class PurchaseOrder {
-    private String poNumber;
+    private String poId;
     private Supplier supplier;
-    // Maps SKU -> Expected Quantity
-    private Map<String, Integer> expectedItems;
-    // Maps SKU -> Actually Received Quantity
-    private Map<String, Integer> receivedItems;
+    private String status;
+    private Map<String, POItem> items;
 
-    public PurchaseOrder(String poNumber, Supplier supplier) {
-        this.poNumber = poNumber;
+    public PurchaseOrder(String poId, Supplier supplier) {
+        this.poId = poId;
         this.supplier = supplier;
-        this.expectedItems = new HashMap<>();
-        this.receivedItems = new HashMap<>();
+        this.status = "OPEN";
+        this.items = new HashMap<>();
     }
 
-    public void addExpectedItem(String sku, int quantity) {
-        expectedItems.put(sku, quantity);
-        receivedItems.put(sku, 0); // Initialize received count to 0
+    // Upgraded to include price, mapping to POItem table
+    public void addExpectedItem(String sku, int quantity, double price) {
+        items.put(sku, new POItem(this.poId, sku, quantity, price));
     }
 
-    public String getPoNumber() { return poNumber; }
+    public String getPoNumber() { return poId; }
+    public String getStatus() { return status; }
+    
+    public POItem getItem(String sku) {
+        return items.get(sku);
+    }
 
     /**
-     * Validates if we can receive this SKU.
-     * Prevents over-receiving or accepting unordered items.
+     * Retained for backward compatibility with our current controller.
+     * Will be upgraded in Phase 3 during 3-Way Matching.
      */
     public boolean authorizeReceiving(String sku, int quantity) {
-        if (!expectedItems.containsKey(sku)) {
-            return false; // We didn't order this item
+        if (!items.containsKey(sku)) {
+            return false; 
         }
-        
-        int currentlyReceived = receivedItems.get(sku);
-        int expected = expectedItems.get(sku);
-        
-        if (currentlyReceived + quantity > expected) {
-            return false; // Over-receiving attempt
+        POItem item = items.get(sku);
+        if (item.getReceivedQty() + quantity > item.getOrderedQty()) {
+            return false; 
         }
+        item.addReceivedQty(quantity);
         
-        // Update received counts
-        receivedItems.put(sku, currentlyReceived + quantity);
+        // Auto-close PO if fully received
+        checkAndClosePO();
         return true;
+    }
+
+    private void checkAndClosePO() {
+        boolean allReceived = true;
+        for (POItem item : items.values()) {
+            if (item.getPendingQty() > 0) {
+                allReceived = false;
+                break;
+            }
+        }
+        if (allReceived) {
+            this.status = "CLOSED";
+            System.out.println("PurchaseOrder: PO " + poId + " is now fully received and CLOSED.");
+        }
     }
 }
