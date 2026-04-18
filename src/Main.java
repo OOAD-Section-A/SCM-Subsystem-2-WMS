@@ -44,23 +44,28 @@ public class Main {
         // The Invoker processes the commands
         wmsFacade.getTaskEngine().executeAllPendingTasks();
 
-        // --- 4. Upgraded Procurement: ASN & Pre-Receiving Test ---
-        System.out.println("\n--- 4. Upgraded Procurement: ASN & Pre-Receiving Test ---");
+        // --- 4. Upgraded Procurement: GRN & QIR QC Test ---
+        System.out.println("\n--- 4. Upgraded Procurement: GRN & QIR QC Test ---");
         wms.models.Supplier dairyFarm = new wms.models.Supplier("SUP-001", "Green Valley Farms", 5, 0.95);
         wms.models.PurchaseOrder po = new wms.models.PurchaseOrder("PO-10023", dairyFarm);
+        
+        // We order 50 milks and 50 cans of beans
         po.addExpectedItem(milk.getSku(), 50, 2.50); 
-        System.out.println("Purchase Order " + po.getPoNumber() + " successfully created.");
+        po.addExpectedItem(cannedBeans.getSku(), 50, 1.00); 
 
-        // Step A: Supplier sends ASN
+        // Supplier sends ASN for both
         wms.models.AdvanceShipmentNotice asn = new wms.models.AdvanceShipmentNotice("ASN-7788", po.getPoNumber(), dairyFarm, "2026-04-20");
         asn.addExpectedItem(milk.getSku(), 50);
+        asn.addExpectedItem(cannedBeans.getSku(), 50);
 
-        // Step B: Warehouse registers the ASN
         wms.controllers.InboundReceivingController dockController = new wms.controllers.InboundReceivingController(wmsFacade);
         dockController.registerASN(asn);
 
-        // Step C: Truck arrives and we process the receipt
-        dockController.processArrival(po, asn, milk, 50);
+        // Scenario A: Milk arrives, but 5 are damaged! (Perishable rule applies)
+        dockController.processArrivalWithQC(po, asn, milk, 50, 5);
+        
+        // Scenario B: Beans arrive, 10 are damaged! (Non-perishable rule applies)
+        dockController.processArrivalWithQC(po, asn, cannedBeans, 50, 10);
         
         System.out.println("\n--- Test Complete ---");
     }
