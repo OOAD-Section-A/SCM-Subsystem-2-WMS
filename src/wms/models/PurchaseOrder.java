@@ -4,9 +4,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Description: GRASP Information Expert.
+ * Description: GRASP Information Expert. 
  */
-
 public class PurchaseOrder {
     private String poId;
     private Supplier supplier;
@@ -20,22 +19,19 @@ public class PurchaseOrder {
         this.items = new HashMap<>();
     }
 
-    // Upgraded to include price, mapping to POItem table
     public void addExpectedItem(String sku, int quantity, double price) {
         items.put(sku, new POItem(this.poId, sku, quantity, price));
     }
 
+    // --- GETTERS ---
     public String getPoNumber() { return poId; }
     public String getStatus() { return status; }
+    public Supplier getSupplier() { return supplier; } 
     
     public POItem getItem(String sku) {
         return items.get(sku);
     }
 
-    /**
-     * Retained for backward compatibility with our current controller.
-     * Will be upgraded in Phase 3 during 3-Way Matching.
-     */
     public boolean authorizeReceiving(String sku, int quantity) {
         if (!items.containsKey(sku)) {
             return false; 
@@ -46,7 +42,6 @@ public class PurchaseOrder {
         }
         item.addReceivedQty(quantity);
         
-        // Auto-close PO if fully received
         checkAndClosePO();
         return true;
     }
