@@ -44,15 +44,23 @@ public class Main {
         // The Invoker processes the commands
         wmsFacade.getTaskEngine().executeAllPendingTasks();
 
-        // --- 4. Upgraded Procurement PO Test ---
-        System.out.println("\n--- 4. Upgraded Procurement PO Test ---");
+        // --- 4. Upgraded Procurement: ASN & Pre-Receiving Test ---
+        System.out.println("\n--- 4. Upgraded Procurement: ASN & Pre-Receiving Test ---");
         wms.models.Supplier dairyFarm = new wms.models.Supplier("SUP-001", "Green Valley Farms", 5, 0.95);
         wms.models.PurchaseOrder po = new wms.models.PurchaseOrder("PO-10023", dairyFarm);
-        
-        // Now 'milk' exists and can be added to the PO!
         po.addExpectedItem(milk.getSku(), 50, 2.50); 
-        
-        System.out.println("Purchase Order " + po.getPoNumber() + " successfully created with Supplier: " + dairyFarm.getName());
+        System.out.println("Purchase Order " + po.getPoNumber() + " successfully created.");
+
+        // Step A: Supplier sends ASN
+        wms.models.AdvanceShipmentNotice asn = new wms.models.AdvanceShipmentNotice("ASN-7788", po.getPoNumber(), dairyFarm, "2026-04-20");
+        asn.addExpectedItem(milk.getSku(), 50);
+
+        // Step B: Warehouse registers the ASN
+        wms.controllers.InboundReceivingController dockController = new wms.controllers.InboundReceivingController(wmsFacade);
+        dockController.registerASN(asn);
+
+        // Step C: Truck arrives and we process the receipt
+        dockController.processArrival(po, asn, milk, 50);
         
         System.out.println("\n--- Test Complete ---");
     }
