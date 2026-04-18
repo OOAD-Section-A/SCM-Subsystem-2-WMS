@@ -9,13 +9,19 @@ public class WarehouseFacade extends WarehouseSubsystemBase {
 
     private InventoryManager inventoryManager;
     private OrderPickingEngine pickingEngine;
+    private wms.services.TaskEngine taskEngine;
 
     public WarehouseFacade(IWMSRepository repository) {
         super(repository);
         this.inventoryManager = new InventoryManager();
         this.pickingEngine = new OrderPickingEngine();
+        this.taskEngine = new wms.services.TaskEngine();
     }
 
+    public wms.services.TaskEngine getTaskEngine() {
+        return this.taskEngine;
+    }
+    
     /**
      * Bridges digital reservation with physical execution.
      * Uses Strategy pattern for dynamic picking algorithms.

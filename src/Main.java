@@ -1,11 +1,11 @@
 import wms.contracts.IWMSRepository;
 import wms.services.WarehouseFacade;
 import wms.models.*;
-import wms.observers.ReplenishmentService;
+import wms.commands.*;
 
 public class Main {
     public static void main(String[] args) {
-        System.out.println("--- Starting SCM Subsystem 2 (Advanced Features Test) ---");
+        System.out.println("--- Starting SCM Subsystem 2 (Command Pattern Test) ---");
 
         IWMSRepository mockDbRepo = new IWMSRepository() {
             public boolean validatePurchaseOrder(String po) { return true; }
@@ -14,28 +14,32 @@ public class Main {
         };
 
         WarehouseFacade wmsFacade = new WarehouseFacade(mockDbRepo);
+        Product cannedBeans = new Product("SKU-CANNED-99", "Baked Beans", ProductCategory.DRY_GOODS);
         
-        // 1. Setup Observer Pattern for Replenishment
-        ReplenishmentService replService = new ReplenishmentService();
-        wmsFacade.getInventoryManager().addObserver(replService);
-        
-        Product milk = new Product("SKU-DAIRY-1", "Organic Milk", ProductCategory.PERISHABLE_COLD);
-        
-        // Set the threshold. If milk drops below 20, trigger an alert!
-        wmsFacade.getInventoryManager().setSafetyStockThreshold(milk.getSku(), 20);
+        System.out.println("\n--- 1. Stocking Inventory ---");
+        wmsFacade.receiveAndStoreProduct(cannedBeans, 500);
 
-        System.out.println("\n--- 1. Testing Automated Replenishment ---");
-        wmsFacade.receiveAndStoreProduct(milk, 50); // Stock is now 50
+        System.out.println("\n--- 2. Scheduling Advanced Worker Tasks ---");
         
-        // Fulfill an order of 40. Stock will drop to 10. This should trigger the Observer!
-        Order bigOrder = new Order("ORD-9999");
-        bigOrder.addItem(milk.getSku(), 40);
-        wmsFacade.dispatchOrder(bigOrder, new wms.strategies.WavePickingStrategy());
+        // Command 1: Schedule a Cycle Count (Audit)
+        CycleCountTask auditTask = new CycleCountTask(
+            cannedBeans.getSku(), 
+            "ZONE-DRY-BIN-99", 
+            wmsFacade.getInventoryManager()
+        );
+        wmsFacade.getTaskEngine().scheduleTask(auditTask);
 
-        System.out.println("\n--- 2. Testing Cross-Docking ---");
-        Product freshBread = new Product("SKU-BREAD-1", "Fresh Bakery Bread", ProductCategory.PERISHABLE_COLD);
-        // Bread is highly perishable and needed for an urgent order. Bypass storage!
-        wmsFacade.processCrossDock(freshBread, 100, "ORD-URGENT-01");
+        // Command 2: Schedule an Interleaved Task (Optimizing worker movement)
+        InterleavedTask smartRoutingTask = new InterleavedTask(
+            "Worker-JohnDoe", 
+            "Aisle 4, Rack B",  // Drop off location
+            "Aisle 4, Rack A"   // Pick up location on the way back
+        );
+        wmsFacade.getTaskEngine().scheduleTask(smartRoutingTask);
+
+        System.out.println("\n--- 3. Executing the Task Queue ---");
+        // The Invoker processes the commands
+        wmsFacade.getTaskEngine().executeAllPendingTasks();
 
         System.out.println("\n--- Test Complete ---");
     }
