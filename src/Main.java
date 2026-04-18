@@ -1,10 +1,11 @@
 import wms.contracts.IWMSRepository;
 import wms.services.WarehouseFacade;
 import wms.models.*;
+import wms.observers.ReplenishmentService;
 
 public class Main {
     public static void main(String[] args) {
-        System.out.println("--- Starting SCM Subsystem 2 Test ---");
+        System.out.println("--- Starting SCM Subsystem 2 (Advanced Features Test) ---");
 
         IWMSRepository mockDbRepo = new IWMSRepository() {
             public boolean validatePurchaseOrder(String po) { return true; }
@@ -13,35 +14,28 @@ public class Main {
         };
 
         WarehouseFacade wmsFacade = new WarehouseFacade(mockDbRepo);
+        
+        // 1. Setup Observer Pattern for Replenishment
+        ReplenishmentService replService = new ReplenishmentService();
+        wmsFacade.getInventoryManager().addObserver(replService);
+        
         Product milk = new Product("SKU-DAIRY-1", "Organic Milk", ProductCategory.PERISHABLE_COLD);
-        Product cereal = new Product("SKU-DRY-1", "Corn Flakes", ProductCategory.DRY_GOODS);
+        
+        // Set the threshold. If milk drops below 20, trigger an alert!
+        wmsFacade.getInventoryManager().setSafetyStockThreshold(milk.getSku(), 20);
 
-        // 1. Stock the warehouse first!
-        System.out.println("--- 1. Inbound Restocking ---");
-        wmsFacade.receiveAndStoreProduct(milk, 50);
-        wmsFacade.receiveAndStoreProduct(cereal, 50);
+        System.out.println("\n--- 1. Testing Automated Replenishment ---");
+        wmsFacade.receiveAndStoreProduct(milk, 50); // Stock is now 50
+        
+        // Fulfill an order of 40. Stock will drop to 10. This should trigger the Observer!
+        Order bigOrder = new Order("ORD-9999");
+        bigOrder.addItem(milk.getSku(), 40);
+        wmsFacade.dispatchOrder(bigOrder, new wms.strategies.WavePickingStrategy());
 
-        System.out.println("\n--- 2. Order Picking Test (Subsystem 4 Integration) ---");
-        
-        // Setup Order 1 (Supermarket A needs items quickly)
-        Order order1 = new Order("ORD-9001");
-        order1.addItem(milk.getSku(), 10);
-        
-        // Execute with Wave Picking
-        wmsFacade.dispatchOrder(order1, new wms.strategies.WavePickingStrategy());
-
-        // Setup Order 2 (Supermarket B needs a large mixed order)
-        Order order2 = new Order("ORD-9002");
-        order2.addItem(milk.getSku(), 5);
-        order2.addItem(cereal.getSku(), 20);
-        
-        // Execute with Zone Picking
-        wmsFacade.dispatchOrder(order2, new wms.strategies.ZonePickingStrategy());
-        
-        // Setup Order 3 (Fails due to lack of stock!)
-        Order order3 = new Order("ORD-ERROR");
-        order3.addItem(cereal.getSku(), 100);
-        wmsFacade.dispatchOrder(order3, new wms.strategies.WavePickingStrategy());
+        System.out.println("\n--- 2. Testing Cross-Docking ---");
+        Product freshBread = new Product("SKU-BREAD-1", "Fresh Bakery Bread", ProductCategory.PERISHABLE_COLD);
+        // Bread is highly perishable and needed for an urgent order. Bypass storage!
+        wmsFacade.processCrossDock(freshBread, 100, "ORD-URGENT-01");
 
         System.out.println("\n--- Test Complete ---");
     }

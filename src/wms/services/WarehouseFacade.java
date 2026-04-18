@@ -61,4 +61,18 @@ public class WarehouseFacade extends WarehouseSubsystemBase {
     public wms.models.StorageUnit packProduct(wms.models.Product product, wms.models.StorageUnitType unitType, String unitId) {
         return wms.factories.StorageUnitFactory.createStorageUnit(unitType, unitId);
     }
+    /**
+     * Cross-Docking feature
+     * Bypasses the Putaway logic and routes inbound goods directly to the shipping dock.
+     */
+    public void processCrossDock(wms.models.Product product, int quantity, String outboundOrderId) {
+        System.out.println("\nFacade: [CROSS-DOCKING INITIATED] for " + product.getName() + " (Qty: " + quantity + ")");
+        System.out.println(" -> Bypassing Putaway Strategies...");
+        System.out.println(" -> Routing directly from Receiving Dock to Shipping Dock for Order: " + outboundOrderId);
+        // Note: In Cross-docking, it never enters the main inventory ledger.
+    }
+
+    public InventoryManager getInventoryManager() {
+        return this.inventoryManager;
+    }
 }
