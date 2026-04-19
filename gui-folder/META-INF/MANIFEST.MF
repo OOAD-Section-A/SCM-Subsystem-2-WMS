@@ -1,6 +1,0 @@
-Manifest-Version: 1.0
-Main-Class: com.scm.gui.ExceptionViewerGUI
-Class-Path: scm-exception-handler-v3.jar database-module-1.0.0-SNAPSHOT-
- standalone.jar
-Created-By: 17.0.17 (Oracle Corporation)
-
