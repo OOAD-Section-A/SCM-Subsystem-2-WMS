@@ -35,7 +35,6 @@ public class PackingVerificationService implements IPackingVerificationService {
             }
         }
 
-        // Check for extra items that aren't even in the order
         for (String scannedSku : scannedCounts.keySet()) {
             if (!expectedItems.containsKey(scannedSku)) {
                 throw new WMSException(
@@ -45,7 +44,6 @@ public class PackingVerificationService implements IPackingVerificationService {
 
         System.out.println("PackingVerification: RFID Validation PASSED. Handing off to External Packaging System...");
 
-        // Pass to packaging adapter
         packagingAdapter.dispatchPackingJob(order, productCatalog);
 
         return true;
