@@ -1,7 +1,10 @@
 package wms.integration;
 
+import wms.exceptions.BinCapacityExceededException;
+import wms.exceptions.InsufficientStockException;
 import wms.views.WarehouseTerminalView;
 
+// Assuming the external JAR provides a WarehouseManagementSubsystem.INSTANCE or similar
 public class SafeExceptionAdapter {
 
 	private static boolean useExternalJar = true;
@@ -9,9 +12,20 @@ public class SafeExceptionAdapter {
 	public static void handle(Exception e) {
 		if (useExternalJar) {
 			try {
-				WarehouseTerminalView.printSystemEvent("SUBSYSTEM 17", "Routing exception to SCMExceptionHandler...");
-				// SCMExceptionHandler.INSTANCE.handle(e)
-				throw new NoClassDefFoundError("SCMExceptionHandler");
+				if (e instanceof BinCapacityExceededException) {
+					BinCapacityExceededException bce = (BinCapacityExceededException) e;
+					WarehouseTerminalView.printSystemEvent("SUBSYSTEM 17",
+							"Calling Subsystem 17 onBinCapacityExceeded...");
+					// WarehouseManagementSubsystem.INSTANCE.onBinCapacityExceeded(bce.getBinId(), bce.getLimit());
+				} else if (e instanceof InsufficientStockException) {
+					InsufficientStockException ise = (InsufficientStockException) e;
+					WarehouseTerminalView.printSystemEvent("SUBSYSTEM 17",
+							"Calling Subsystem 17 onInsufficientStockForPick...");
+					// WarehouseManagementSubsystem.INSTANCE.onInsufficientStockForPick(ise.getProductId(), ise.getRequested(), ise.getAvailable());
+				} else {
+					WarehouseTerminalView.printSystemEvent("SUBSYSTEM 17", "Calling generic error logger...");
+				}
+				throw new NoClassDefFoundError("WarehouseManagementSubsystem");
 			} catch (Throwable t) {
 				useExternalJar = false;
 				WarehouseTerminalView.printWarning("CIRCUIT BREAKER", "Subsystem 17 offline.");

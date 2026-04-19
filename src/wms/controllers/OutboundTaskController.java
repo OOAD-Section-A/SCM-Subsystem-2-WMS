@@ -35,7 +35,7 @@ public class OutboundTaskController implements Runnable {
 					try {
 						WarehouseTerminalView.printSystemEvent("POLLER", "Found task: " + task.getTaskId());
 						if (task.getTaskId().equals("T-ERR")) {
-							throw new WmsCoreException("Simulated stock sync error for " + task.getTaskId());
+							throw new wms.exceptions.InsufficientStockException(task.getProductId(), 50, 10, "Not enough stock for pick task");
 						} else {
 							WarehouseTerminalView.printTaskExecution(task.getTaskId(), "COMPLETED");
 							repository.updateTaskStatus(task.getTaskId(), "COMPLETED");
