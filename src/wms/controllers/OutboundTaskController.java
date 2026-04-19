@@ -1,12 +1,20 @@
 package wms.controllers;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import wms.exceptions.WmsCoreException;
 import wms.integration.IWMSRepository;
+import wms.integration.SafeExceptionAdapter;
 import wms.integration.SCMDatabaseAdapter;
 import wms.models.WarehouseTask;
+import wms.services.IPickingStrategy;
+import wms.services.WavePickingStrategy;
 
 public class OutboundTaskController implements Runnable {
 	private final IWMSRepository repository;
+	private final IPickingStrategy pickingStrategy = new WavePickingStrategy();
+	private final Map<String, Integer> retryCounts = new HashMap<>();
 
 	public OutboundTaskController(IWMSRepository repository) {
 		this.repository = repository;
@@ -14,13 +22,27 @@ public class OutboundTaskController implements Runnable {
 
 	@Override
 	public void run() {
-		for (int i = 0; i < 3; i++) {
+		for (int i = 0; i < 4; i++) {
 			List<WarehouseTask> tasks = repository.fetchPendingTasks();
+			List<WarehouseTask> optimizedTasks = pickingStrategy.optimizePickPath(tasks);
 
-			if (!tasks.isEmpty()) {
-				for (WarehouseTask task : tasks) {
-					System.out.println("[POLLER] Found task: " + task.getTaskId());
-					repository.updateTaskStatus(task.getTaskId(), "COMPLETED");
+			if (!optimizedTasks.isEmpty()) {
+				for (WarehouseTask task : optimizedTasks) {
+					try {
+						System.out.println("[POLLER] Found task: " + task.getTaskId());
+						throw new WmsCoreException("Simulated stock sync error for " + task.getTaskId());
+					} catch (Exception e) {
+						int count = retryCounts.getOrDefault(task.getTaskId(), 0) + 1;
+						retryCounts.put(task.getTaskId(), count);
+
+						if (count >= 3) {
+							System.out.println("[DLQ] Task " + task.getTaskId() + " failed 3 times. Routing to Subsystem 17.");
+							repository.updateTaskStatus(task.getTaskId(), "FAILED");
+							SafeExceptionAdapter.handle(e);
+						} else {
+							System.out.println("[RETRY] Task " + task.getTaskId() + " failed. Retrying attempt " + count + ".");
+						}
+					}
 				}
 			}
 
