@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import wms.exceptions.WMSException;
 import wms.observers.IInventoryObserver;
+import com.scm.subsystems.WarehouseMgmtSubsystem;
 
 /**
  * Description: GRASP Information Expert for stock levels.
@@ -17,6 +18,8 @@ public class InventoryManager {
     
     // Observer Pattern: List of listeners
     private List<IInventoryObserver> observers;
+
+    private final WarehouseMgmtSubsystem exceptions = WarehouseMgmtSubsystem.INSTANCE;
 
     public InventoryManager() {
         this.stockLedger = new HashMap<>();
@@ -52,6 +55,7 @@ public class InventoryManager {
             }
             return true;
         } else {
+            exceptions.onInsufficientStockForPick(sku, quantity, currentStock);
             throw new WMSException("Insufficient stock for SKU: " + sku + ". Requested: " + quantity + ", Available: " + currentStock);
         }
     }

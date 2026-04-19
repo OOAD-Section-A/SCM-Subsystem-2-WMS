@@ -10,12 +10,14 @@ public class WarehouseFacade extends WarehouseSubsystemBase {
     private InventoryManager inventoryManager;
     private OrderPickingEngine pickingEngine;
     private wms.services.TaskEngine taskEngine;
+    private Map<String, Map<String, Integer>> dockScans;
 
     public WarehouseFacade(IWMSRepository repository) {
         super(repository);
         this.inventoryManager = new InventoryManager();
         this.pickingEngine = new OrderPickingEngine();
         this.taskEngine = new wms.services.TaskEngine();
+        this.dockScans = new java.util.HashMap<>();
     }
 
     public wms.services.TaskEngine getTaskEngine() {
@@ -55,7 +57,20 @@ public class WarehouseFacade extends WarehouseSubsystemBase {
     }
 
     @Override
-    public void processInboundScan(String barcode, String dockId) {}
+    public void processInboundScan(String sku, String dockId) {
+        dockScans.putIfAbsent(dockId, new java.util.HashMap<>());
+        Map<String, Integer> scans = dockScans.get(dockId);
+        scans.put(sku, scans.getOrDefault(sku, 0) + 1);
+        System.out.println("Facade: Inbound scan logged at " + dockId + " for SKU: " + sku + " (Total scanned so far: " + scans.get(sku) + ")");
+    }
+
+    /**
+     * Retrieves the aggregated scans for a given dock door and clears them for the next truck.
+     */
+    public Map<String, Integer> getAndClearDockScans(String dockId) {
+        Map<String, Integer> scans = dockScans.remove(dockId);
+        return scans != null ? scans : new java.util.HashMap<>();
+    }
 
     public void receiveAndStoreProduct(wms.models.Product product, int quantity) {
         System.out.println("Facade: Receiving product - " + product.getName() + " (Qty: " + quantity + ")");
