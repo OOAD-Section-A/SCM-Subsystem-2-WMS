@@ -4,9 +4,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import wms.exceptions.WmsCoreException;
+import wms.integration.IWarehousePackingIntegration;
 import wms.integration.IWMSRepository;
 import wms.integration.SafeExceptionAdapter;
 import wms.integration.SCMDatabaseAdapter;
+import wms.integration.Subsystem14PackingAdapter;
 import wms.models.WarehouseTask;
 import wms.services.IPickingStrategy;
 import wms.services.WavePickingStrategy;
@@ -14,6 +16,7 @@ import wms.services.WavePickingStrategy;
 public class OutboundTaskController implements Runnable {
 	private final IWMSRepository repository;
 	private final IPickingStrategy pickingStrategy = new WavePickingStrategy();
+	private final IWarehousePackingIntegration packingIntegration = new Subsystem14PackingAdapter();
 	private final Map<String, Integer> retryCounts = new HashMap<>();
 
 	public OutboundTaskController(IWMSRepository repository) {
@@ -30,7 +33,13 @@ public class OutboundTaskController implements Runnable {
 				for (WarehouseTask task : optimizedTasks) {
 					try {
 						System.out.println("[POLLER] Found task: " + task.getTaskId());
-						throw new WmsCoreException("Simulated stock sync error for " + task.getTaskId());
+						if (task.getTaskId().equals("T-ERR")) {
+							throw new WmsCoreException("Simulated stock sync error for " + task.getTaskId());
+						} else {
+							System.out.println("[EXECUTION] Picker completed Task " + task.getTaskId());
+							repository.updateTaskStatus(task.getTaskId(), "COMPLETED");
+							packingIntegration.createPackingJob(task.getTaskId(), "PACK-STATION-1");
+						}
 					} catch (Exception e) {
 						int count = retryCounts.getOrDefault(task.getTaskId(), 0) + 1;
 						retryCounts.put(task.getTaskId(), count);

@@ -11,6 +11,7 @@ public class SCMDatabaseAdapter implements IWMSRepository {
 	public List<WarehouseTask> fetchPendingTasks() {
 		List<WarehouseTask> tasks = new ArrayList<>();
 		tasks.add(new WarehouseTask("T-100", "PICK", "P-50", "A1", "PENDING"));
+		tasks.add(new WarehouseTask("T-ERR", "PICK", "P-99", "B2", "PENDING"));
 		return tasks;
 	}
 
