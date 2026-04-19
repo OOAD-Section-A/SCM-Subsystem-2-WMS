@@ -1,4 +1,5 @@
 import wms.controllers.OutboundTaskController;
+import wms.integration.DatabaseSeeder;
 import wms.integration.SCMDatabaseAdapter;
 import wms.integration.Subsystem14PackingAdapter;
 import wms.integration.Subsystem8ForecastAdapter;
@@ -11,6 +12,8 @@ public class Main {
     WarehouseTerminalView.printSystemEvent("BOOT", "Initializing SCM Warehouse Management Subsystem (WMS)...");
     WarehouseTerminalView.printSystemEvent("BOOT", "Composition Root: wiring adapters, services, and controllers");
     WarehouseTerminalView.printSystemEvent("BOOT", "============================================================");
+
+    DatabaseSeeder.seedInitialData();
 
     SCMDatabaseAdapter repository = new SCMDatabaseAdapter();
     Subsystem14PackingAdapter packingAdapter = new Subsystem14PackingAdapter();
