@@ -13,9 +13,12 @@ We implemented all RFID integration points as isolated interfaces inside the `wm
 * **Logic:** RFID tags are scanned individually as a truck is unloaded. WMS (`WarehouseFacade`) aggregates these scans via `processInboundScan`. Once complete, the `InboundReceivingController` fetches the tallied data and generates a bulk Goods Receipt Note (GRN), which is then passed to Inventory.
 * **Exception Handling:** If the tallied RFID count does not match the Expected Quantity on the Advance Shipment Notice (ASN), the `WarehouseMgmtSubsystem` throws a `GRN_QTY_MISMATCH` exception. If damaged items are detected during this stage, it throws `DAMAGED_GOODS_DETECTED`.
 
-### B. Outbound Packing Verification
-* **Logic:** During order fulfillment, items placed into the shipping box are scanned via RFID. The `PackingVerificationService` takes the digital `Order` and the list of physical `scannedSkus` and guarantees a 100% match.
-* **Benefit:** Prevents mis-shipments to the Delivery subsystem.
+### B. Outbound Packing (WMS RFID Verification + Packaging System Handoff)
+* **Logic:** 
+  1. A warehouse worker scans the RFID tags of items as they are placed into an outbound box.
+  2. The `PackingVerificationService` takes the digital `Order` and the list of physical `scannedSkus` to guarantee a 100% match.
+  3. If the verification succeeds, the WMS uses the `PackagingSystemAdapter` to compile a `PackingRequest`. It safely encodes the Product Name, Type, Perishability, and Dates into the `description` string, and maps Fragility to the boolean field, before sending it to the external `IWarehousePackingIntegration`.
+* **Benefit:** WMS remains the central brain, bridging physical hardware (RFID scans) with the external Packaging software, without breaking their strict API constraints.
 
 ### C. Cross-Docking Automation
 * **Logic:** When an inbound item is scanned, the `CrossDockingService` immediately checks if that SKU is backordered or flagged as urgent. If true, the WMS bypasses the Putaway storage strategies entirely and routes the item directly to the outbound shipping dock.

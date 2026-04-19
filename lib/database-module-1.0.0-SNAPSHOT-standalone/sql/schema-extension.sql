@@ -1,0 +1,7 @@
+-- Deprecated compatibility file.
+--
+-- The runtime schema is fully consolidated in the canonical root-level
+-- schema.sql, which is packaged into the standalone JAR and loaded by
+-- SchemaBootstrapper.
+--
+-- Keep this file free of table/view definitions to avoid schema drift.
