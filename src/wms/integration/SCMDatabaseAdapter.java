@@ -3,6 +3,7 @@ package wms.integration;
 import java.util.ArrayList;
 import java.util.List;
 import wms.models.WarehouseTask;
+import wms.views.WarehouseTerminalView;
 
 public class SCMDatabaseAdapter implements IWMSRepository {
 	// In reality, this will wrap Subsystem 15's SupplyChainDatabaseFacade
@@ -17,7 +18,7 @@ public class SCMDatabaseAdapter implements IWMSRepository {
 
 	@Override
 	public void updateTaskStatus(String taskId, String newStatus) {
-		System.out.println("[DB ADAPTER] Updating task " + taskId + " to status: " + newStatus);
+		WarehouseTerminalView.printSystemEvent("DB ADAPTER", "Updating task " + taskId + " to status: " + newStatus);
 	}
 
 	public static void main(String[] args) {

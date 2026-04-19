@@ -1,6 +1,7 @@
 package wms.strategies;
 
 import wms.models.Order;
+import wms.views.WarehouseTerminalView;
 
 /**
  * Description: Groups orders into scheduled "waves" based on departure times.
@@ -8,7 +9,6 @@ import wms.models.Order;
 public class WavePickingStrategy implements IPickingStrategy {
     @Override
     public void generatePickList(Order order) {
-        System.out.println("Strategy [WavePicking]: Scheduling Order " + order.getOrderId() + " into the 14:00 PM Dispatch Wave.");
-        System.out.println(" -> Generating sequential routing path for worker...");
+        WarehouseTerminalView.printRouting("Wave Picking", "Sorting tasks by Bin ID for optimal routing.");
     }
 }

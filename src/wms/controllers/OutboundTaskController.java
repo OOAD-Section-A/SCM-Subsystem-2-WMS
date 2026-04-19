@@ -12,6 +12,7 @@ import wms.integration.Subsystem14PackingAdapter;
 import wms.models.WarehouseTask;
 import wms.services.IPickingStrategy;
 import wms.services.WavePickingStrategy;
+import wms.views.WarehouseTerminalView;
 
 public class OutboundTaskController implements Runnable {
 	private final IWMSRepository repository;
@@ -32,11 +33,11 @@ public class OutboundTaskController implements Runnable {
 			if (!optimizedTasks.isEmpty()) {
 				for (WarehouseTask task : optimizedTasks) {
 					try {
-						System.out.println("[POLLER] Found task: " + task.getTaskId());
+						WarehouseTerminalView.printSystemEvent("POLLER", "Found task: " + task.getTaskId());
 						if (task.getTaskId().equals("T-ERR")) {
 							throw new WmsCoreException("Simulated stock sync error for " + task.getTaskId());
 						} else {
-							System.out.println("[EXECUTION] Picker completed Task " + task.getTaskId());
+							WarehouseTerminalView.printTaskExecution(task.getTaskId(), "COMPLETED");
 							repository.updateTaskStatus(task.getTaskId(), "COMPLETED");
 							packingIntegration.createPackingJob(task.getTaskId(), "PACK-STATION-1");
 						}
@@ -45,11 +46,11 @@ public class OutboundTaskController implements Runnable {
 						retryCounts.put(task.getTaskId(), count);
 
 						if (count >= 3) {
-							System.out.println("[DLQ] Task " + task.getTaskId() + " failed 3 times. Routing to Subsystem 17.");
+							WarehouseTerminalView.printError("DLQ", "Task " + task.getTaskId() + " failed 3 times. Routing to Subsystem 17.", e);
 							repository.updateTaskStatus(task.getTaskId(), "FAILED");
 							SafeExceptionAdapter.handle(e);
 						} else {
-							System.out.println("[RETRY] Task " + task.getTaskId() + " failed. Retrying attempt " + count + ".");
+							WarehouseTerminalView.printWarning("DLQ", "Task " + task.getTaskId() + " failed. Retrying attempt " + count);
 						}
 					}
 				}

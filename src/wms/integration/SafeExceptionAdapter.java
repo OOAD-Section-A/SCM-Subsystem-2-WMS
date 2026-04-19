@@ -1,5 +1,7 @@
 package wms.integration;
 
+import wms.views.WarehouseTerminalView;
+
 public class SafeExceptionAdapter {
 
 	private static boolean useExternalJar = true;
@@ -7,12 +9,12 @@ public class SafeExceptionAdapter {
 	public static void handle(Exception e) {
 		if (useExternalJar) {
 			try {
-				System.out.println("[ATTEMPTING EXTERNAL SUBSYSTEM 17] Routing exception to SCMExceptionHandler...");
+				WarehouseTerminalView.printSystemEvent("SUBSYSTEM 17", "Routing exception to SCMExceptionHandler...");
 				// SCMExceptionHandler.INSTANCE.handle(e)
 				throw new NoClassDefFoundError("SCMExceptionHandler");
 			} catch (Throwable t) {
 				useExternalJar = false;
-				System.out.println("[CIRCUIT BREAKER TRIPPED] Subsystem 17 offline.");
+				WarehouseTerminalView.printWarning("CIRCUIT BREAKER", "Subsystem 17 offline.");
 				localFallbackLog(e);
 			}
 			return;
@@ -22,9 +24,7 @@ public class SafeExceptionAdapter {
 	}
 
 	private static void localFallbackLog(Exception e) {
-		System.err.println("[LOCAL FALLBACK LOG]");
-		System.err.println(e.getMessage());
-		e.printStackTrace(System.err);
+		WarehouseTerminalView.printError("FALLBACK", "Local exception log:", e);
 	}
 
 	public static void main(String[] args) {
