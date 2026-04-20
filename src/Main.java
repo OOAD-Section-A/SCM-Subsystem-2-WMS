@@ -1,5 +1,8 @@
 import wms.controllers.OutboundTaskController;
 import wms.integration.DatabaseSeeder;
+import wms.integration.IWMSRepository;
+import wms.integration.InMemoryWMSRepository;
+import wms.integration.ResilientRepositoryProxy;
 import wms.integration.SCMDatabaseAdapter;
 import wms.integration.Subsystem14PackingAdapter;
 import wms.integration.Subsystem8ForecastAdapter;
@@ -15,7 +18,9 @@ public class Main {
 
     DatabaseSeeder.seedInitialData();
 
-    SCMDatabaseAdapter repository = new SCMDatabaseAdapter();
+    SCMDatabaseAdapter scmDatabaseAdapter = new SCMDatabaseAdapter();
+    IWMSRepository fallbackRepo = new InMemoryWMSRepository();
+    IWMSRepository activeRepository = new ResilientRepositoryProxy(scmDatabaseAdapter, fallbackRepo);
     Subsystem14PackingAdapter packingAdapter = new Subsystem14PackingAdapter();
     WarehouseTerminalView.printSystemEvent(
         "BOOT",
@@ -26,7 +31,7 @@ public class Main {
     optimizer.evaluateAndOptimizeSlotting("P-50", "BULK-ZONE-9", "FAST-PICK-1");
 
     WarehouseTerminalView.printSystemEvent("BOOT", "Starting asynchronous Outbound Task Poller...");
-    OutboundTaskController outboundTaskController = new OutboundTaskController(repository);
+    OutboundTaskController outboundTaskController = new OutboundTaskController(activeRepository);
     Thread pollerThread = new Thread(outboundTaskController);
     pollerThread.start();
 

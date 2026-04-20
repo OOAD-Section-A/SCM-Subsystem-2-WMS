@@ -1,9 +1,9 @@
 package wms.services;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import wms.exceptions.WMSException;
 import wms.observers.IInventoryObserver;
 
@@ -19,8 +19,8 @@ public class InventoryManager {
     private List<IInventoryObserver> observers;
 
     public InventoryManager() {
-        this.stockLedger = new HashMap<>();
-        this.safetyStockThresholds = new HashMap<>();
+        this.stockLedger = new ConcurrentHashMap<>();
+        this.safetyStockThresholds = new ConcurrentHashMap<>();
         this.observers = new ArrayList<>();
     }
 

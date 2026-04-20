@@ -35,7 +35,9 @@ public class ProcurementService {
             }
 
             // 2. Price Check
-            if (invItem.getBilledPrice() != poItem.getAgreedPrice()) {
+            double billedPrice = invItem.getBilledPrice();
+            double agreedPrice = poItem.getAgreedPrice();
+            if (Math.abs(billedPrice - agreedPrice) > 0.01) { // Tolerance prevents IEEE 754 precision errors.
                 discrepancies.add(new Discrepancy("PRICE", sku, po.getSupplier().getSupplierId(),
                     "Price Mismatch. Agreed: $" + poItem.getAgreedPrice() + ", Billed: $" + invItem.getBilledPrice()));
                 isMatch = false;

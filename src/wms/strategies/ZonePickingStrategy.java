@@ -1,15 +1,23 @@
 package wms.strategies;
 
+import java.util.List;
 import wms.models.Order;
+import wms.models.WarehouseTask;
+import wms.views.WarehouseTerminalView;
 
 /**
  * Description: Splits the order based on warehouse zones (e.g., Cold vs. Dry).
  */
 public class ZonePickingStrategy implements IPickingStrategy {
+    
     @Override
     public void generatePickList(Order order) {
-        System.out.println("Strategy [ZonePicking]: Dividing Order " + order.getOrderId() + " across physical zones.");
-        System.out.println(" -> Task 1 assigned to Cold Zone worker.");
-        System.out.println(" -> Task 2 assigned to Dry Zone worker.");
+        WarehouseTerminalView.printRouting("ZonePicking", "Dividing Order " + order.getOrderId() + " across physical zones.");
+    }
+
+    @Override
+    public List<WarehouseTask> optimizePickPath(List<WarehouseTask> tasks) {
+        WarehouseTerminalView.printSystemEvent("STRATEGY", "Executing Zone Picking: Grouping tasks by Zone classification.");
+        return tasks;
     }
 }

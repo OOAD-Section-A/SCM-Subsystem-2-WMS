@@ -10,8 +10,8 @@ import wms.integration.SafeExceptionAdapter;
 import wms.integration.SCMDatabaseAdapter;
 import wms.integration.Subsystem14PackingAdapter;
 import wms.models.WarehouseTask;
-import wms.services.IPickingStrategy;
-import wms.services.WavePickingStrategy;
+import wms.strategies.IPickingStrategy;
+import wms.strategies.WavePickingStrategy;
 import wms.views.WarehouseTerminalView;
 
 public class OutboundTaskController implements Runnable {
