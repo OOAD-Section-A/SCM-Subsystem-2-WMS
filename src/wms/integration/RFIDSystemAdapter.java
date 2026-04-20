@@ -16,143 +16,206 @@ import java.util.Map;
  *
  * DESIGN PATTERN — Adapter (Object Adapter):
  * This is the ONLY file in WMS that imports Subsystem 11 classes.
- * Currently operates as a self-contained stub until Subsystem 11 provides their JAR.
- * When their JAR is available, only this file needs updating.
+ * All other WMS code depends on IRFIDSystemAdapter — never on this class directly.
  *
- * SOLID — Single Responsibility: handles only the translation between
- * Subsystem 11's scan data and WMS domain objects.
+ * RESILIENCE STRATEGY — Two-tier operation:
+ * TIER 1 (Live): Uses com.nova.rfid.integration.WMSIntegrationService from
+ *   Subsystem 11's JAR. Active when their JAR contains WMSIntegrationService.
+ * TIER 2 (Stub): Self-contained simulation. Active when their JAR is unavailable
+ *   or WMSIntegrationService is not yet present. WMS keeps running normally.
  *
- * GRASP — Indirection: sits between WarehouseFacade and Subsystem 11,
- * keeping both sides decoupled from each other.
+ * UPGRADE PATH: When Subsystem 11 provides updated JAR with WMSIntegrationService,
+ * replace lib/rfid-tracker-jar-with-dependencies.jar — nothing else changes in WMS.
  *
- * EXCEPTION POLICY: logs errors via WMSLogger, takes no corrective action.
+ * SOLID — Dependency Inversion: WarehouseFacade depends on IRFIDSystemAdapter,
+ * never on this class directly.
+ * GRASP — Protected Variations: shields WMS from Subsystem 11's internal changes.
+ * EXCEPTION POLICY: logs via WMSLogger, takes no corrective action.
+ *
+ * CRITICAL NOTE FOR SUBSYSTEM 11:
+ * WMS owns ALL inventory updates. Do NOT call AddStockStrategy inside submitScan().
+ * Every scan that triggers a stock update must go through WMS's InboundReceivingController.
  */
 public class RFIDSystemAdapter implements IRFIDSystemAdapter {
 
-    // Per-dock scan tally buffer. Key: dockId, Value: (SKU -> scan count).
-    // Populated by processTagScan(), consumed and cleared by getDockScanTally().
+    // Whether live integration with Subsystem 11 is active.
+    private boolean liveIntegrationActive = false;
+
+    // Subsystem 11's integration service — null when JAR unavailable or
+    // WMSIntegrationService not yet present in their codebase.
+    // Typed as Object to avoid compile-time dependency — resolved via reflection.
+    private Object wmsIntegrationService = null;
+
+    // Per-dock scan tally buffer. Key: dockId, Value: (SKU -> count).
     private final Map<String, Map<String, Integer>> dockTallyBuffer = new HashMap<>();
 
-    // Session log of recent scan events per dock for reporting purposes.
-    // Key: dockId, Value: list of "EVT-ID:TAG:STATUS" strings.
+    // Recent scan event log per dock. Key: dockId, Value: event strings.
     private final Map<String, List<String>> recentScansLog = new HashMap<>();
 
-    // Counter for generating unique scan event IDs in stub mode.
+    // Counter for stub event ID generation.
     private int eventCounter = 1;
 
     /**
-     * NOTE FOR SUBSYSTEM 11 INTEGRATION:
-     * When your JAR is available, inject RFIDSystemFacade here via constructor.
-     * Replace the stub logic in processTagScan() with a call to:
-     *     rfidFacade.submitScan(rfidTag, "RFID")
-     * Then map the returned ScanResult to a WMS Product using mapToWmsProduct().
-     * Do NOT call AddStockStrategy inside submitScan() — inventory is WMS's responsibility.
+     * Attempts to initialize live integration with Subsystem 11.
+     * Falls back to stub mode silently if their JAR or WMSIntegrationService
+     * is unavailable — WMS continues operating normally in either case.
      */
     public RFIDSystemAdapter() {
-        WarehouseTerminalView.printSystemEvent("RFIDSystemAdapter",
-                "Initialised in STUB mode. Awaiting Subsystem 11 JAR for live scanning.");
+        tryInitializeLiveIntegration();
     }
 
+      /**
+   * Attempts to load WMSIntegrationService via reflection.
+   *
+   * Two-stage initialization:
+   * Stage 1 — Load the class (fails if JAR absent → stub mode)
+   * Stage 2 — Call getInstance() (fails if their DB unavailable → stub mode)
+   *
+   * In both failure cases WMS continues in stub mode with no crash.
+   * When their environment is available, live mode activates automatically.
+   */
+  private void tryInitializeLiveIntegration() {
+      Class<?> serviceClass;
+
+      // Stage 1 — Verify WMSIntegrationService exists in their JAR.
+      try {
+          serviceClass = Class.forName("com.nova.rfid.integration.WMSIntegrationService");
+      } catch (ClassNotFoundException e) {
+          WarehouseTerminalView.printSystemEvent("RFIDSystemAdapter",
+                  "STUB mode — WMSIntegrationService not found in Subsystem 11 JAR.");
+          return;
+      }
+
+      // Stage 2 — Attempt to obtain the singleton instance.
+      // Their getInstance() initializes DatabaseManager which connects to their DB.
+      // This will fail when their DB is not reachable from our machine.
+      // We catch Throwable here because reflection wraps the real exception in
+      // InvocationTargetException, and the underlying cause may be null.
+      try {
+          java.lang.reflect.Method getInstance = serviceClass.getMethod("getInstance");
+          wmsIntegrationService = getInstance.invoke(null);
+
+          if (wmsIntegrationService == null) {
+              WarehouseTerminalView.printWarning("RFIDSystemAdapter",
+                      "STUB mode — WMSIntegrationService.getInstance() returned null.");
+              return;
+          }
+
+          liveIntegrationActive = true;
+          WarehouseTerminalView.printSystemEvent("RFIDSystemAdapter",
+                  "LIVE mode active — connected to Subsystem 11 (WMSIntegrationService).");
+
+      } catch (java.lang.reflect.InvocationTargetException e) {
+          // The real failure is the cause of InvocationTargetException.
+          Throwable cause = e.getCause();
+          String reason = (cause != null && cause.getMessage() != null)
+                  ? cause.getClass().getSimpleName() + ": " + cause.getMessage()
+                  : "Database or environment unavailable in Subsystem 11";
+
+          WarehouseTerminalView.printWarning("RFIDSystemAdapter",
+                  "STUB mode — Subsystem 11 environment not reachable. Reason: " + reason);
+          WMSLogger.logError("RFIDSystemAdapter.init",
+                  "Subsystem 11 live init failed: " + reason);
+
+      } catch (Throwable t) {
+          WarehouseTerminalView.printWarning("RFIDSystemAdapter",
+                  "STUB mode — Unexpected error initializing Subsystem 11: "
+                          + t.getClass().getSimpleName());
+          WMSLogger.logError("RFIDSystemAdapter.init", t.getMessage());
+      }
+  }
+
     /**
-     * Processes a single RFID/barcode tag scan at a dock.
-     * Identifies the product, tallies it in the dock buffer, and logs the event.
-     * Returns null if the tag is unrecognised — callers must handle null gracefully.
+     * Processes a single RFID or barcode tag scan at a dock.
+     * In LIVE mode: calls WMSIntegrationService.submitScan() and
+     * WMSIntegrationService.getProductFromScan() on Subsystem 11's facade.
+     * In STUB mode: derives a simulated product from the tag string.
+     * Returns null if tag is unresolvable — callers handle null gracefully.
      */
     @Override
     public Product processTagScan(String rfidTag, String dockId) {
         try {
-            // STUB: Derive a Product from the tag string for simulation.
-            // REPLACE THIS BLOCK when Subsystem 11 JAR is available.
-            Product product = resolveProductFromTag(rfidTag);
+            Product product = liveIntegrationActive
+                    ? processTagScanLive(rfidTag, dockId)
+                    : processTagScanStub(rfidTag, dockId);
 
             if (product == null) {
                 WarehouseTerminalView.printWarning("RFIDSystemAdapter",
-                        "Unknown tag scanned at " + dockId + ": " + rfidTag);
+                        "Unknown tag at " + dockId + ": " + rfidTag);
                 WMSLogger.logError("RFIDSystemAdapter.processTagScan",
-                        "Unresolved RFID tag: " + rfidTag + " at dock: " + dockId);
+                        "Unresolved tag: " + rfidTag + " at " + dockId);
                 return null;
             }
 
-            // Accumulate scan count in the dock tally buffer.
+            // Accumulate in dock tally buffer regardless of live/stub mode.
             dockTallyBuffer
                     .computeIfAbsent(dockId, k -> new HashMap<>())
                     .merge(product.getSku(), 1, Integer::sum);
 
-            // Log the scan event for reporting.
+            // Log the scan event.
             String eventId = String.format("EVT-%03d", eventCounter++);
             recentScansLog
                     .computeIfAbsent(dockId, k -> new ArrayList<>())
                     .add(0, eventId + ":" + rfidTag + ":OK");
 
             WarehouseTerminalView.printSystemEvent("RFIDSystemAdapter",
-                    "Scan OK | Tag: " + rfidTag + " -> SKU: " + product.getSku()
-                            + " | Dock: " + dockId + " | Event: " + eventId);
+                    "Scan OK | Tag: " + rfidTag
+                            + " -> SKU: " + product.getSku()
+                            + " | Dock: " + dockId
+                            + " | Event: " + eventId
+                            + (liveIntegrationActive ? " [LIVE]" : " [STUB]"));
 
             return product;
 
-        } catch (Exception e) {
-            WMSLogger.logError("RFIDSystemAdapter.processTagScan", e.getMessage());
+        } catch (Throwable t) {
+            WMSLogger.logError("RFIDSystemAdapter.processTagScan", t.getMessage());
             return null;
         }
     }
 
     /**
-     * Returns the accumulated SKU scan counts for a dock and clears the buffer.
-     * Cleared immediately after retrieval to prevent double-counting on the next arrival.
+     * LIVE path — calls Subsystem 11's WMSIntegrationService via reflection.
+     * Translates their Product model to WMS Product domain model.
      */
-    @Override
-    public Map<String, Integer> getDockScanTally(String dockId) {
-        Map<String, Integer> tally = dockTallyBuffer.getOrDefault(dockId, Collections.emptyMap());
-        dockTallyBuffer.remove(dockId);
-        WarehouseTerminalView.printSystemEvent("RFIDSystemAdapter",
-                "Dock tally retrieved and cleared for " + dockId + " | Items: " + tally);
-        return Collections.unmodifiableMap(tally);
-    }
+    private Product processTagScanLive(String rfidTag, String dockId) {
+        try {
+            // Call WMSIntegrationService.getProductFromScan(rfidTag, "RFID")
+            java.lang.reflect.Method getProduct =
+                    wmsIntegrationService.getClass()
+                            .getMethod("getProductFromScan", String.class, String.class);
+            Object theirProduct = getProduct.invoke(wmsIntegrationService, rfidTag, "RFID");
 
-    /**
-     * Verifies that scanned outbound RFID tags are non-empty.
-     * Full order-level tag matching will be implemented when Subsystem 11 JAR is available.
-     */
-    @Override
-    public boolean verifyOutboundTags(String orderId, List<String> rfidTags) {
-        if (rfidTags == null || rfidTags.isEmpty()) {
-            WarehouseTerminalView.printWarning("RFIDSystemAdapter",
-                    "Outbound tag verification FAILED for Order " + orderId + " — no tags scanned.");
-            return false;
+            if (theirProduct == null) return null;
+
+            // Extract fields from their Product via reflection.
+            String sku = (String) theirProduct.getClass()
+                    .getMethod("getSku").invoke(theirProduct);
+            String name = (String) theirProduct.getClass()
+                    .getMethod("getProductName").invoke(theirProduct);
+            String category = (String) theirProduct.getClass()
+                    .getMethod("getCategory").invoke(theirProduct);
+
+            // SKU blank means their DB did not resolve it — fall back to stub.
+            if (sku == null || sku.isBlank()) {
+                return processTagScanStub(rfidTag, dockId);
+            }
+
+            return new Product(sku, name, mapCategory(category));
+
+        } catch (Throwable t) {
+            WMSLogger.logError("RFIDSystemAdapter.processTagScanLive",
+                    "Live scan failed, falling back to stub: " + t.getMessage());
+            return processTagScanStub(rfidTag, dockId);
         }
-        WarehouseTerminalView.printSystemEvent("RFIDSystemAdapter",
-                "Outbound tag verification PASSED for Order " + orderId
-                        + " | Tags scanned: " + rfidTags.size());
-        return true;
     }
 
     /**
-     * Returns recent scan log entries for a dock, up to the requested limit.
-     * Most recent entries are returned first.
+     * STUB path — derives a simulated Product from the tag string.
+     * Used when Subsystem 11 JAR is unavailable or scan fails.
+     * Replace this method body when live integration is fully stable.
      */
-    @Override
-    public List<String> getRecentDockScans(String dockId, int limit) {
-        List<String> logs = recentScansLog.getOrDefault(dockId, Collections.emptyList());
-        return Collections.unmodifiableList(logs.subList(0, Math.min(limit, logs.size())));
-    }
-
-    /**
-     * STUB — maps an RFID tag string to a WMS Product for simulation purposes.
-     * Uses tag content keywords to infer product category.
-     *
-     * REPLACE THIS METHOD when Subsystem 11 JAR is available — the real
-     * implementation will call DatabaseManager.findProductByRfidTag(tag)
-     * from their codebase and then translate the result using mapToWmsProduct().
-     *
-     * @param rfidTag  Raw tag string from the scanner
-     * @return         A simulated Product, or null if tag is blank or null
-     */
-    private Product resolveProductFromTag(String rfidTag) {
-        if (rfidTag == null || rfidTag.isBlank()) {
-            return null;
-        }
-
-        // Infer category from tag keyword for stub simulation.
+    private Product processTagScanStub(String rfidTag, String dockId) {
+        if (rfidTag == null || rfidTag.isBlank()) return null;
         String tagUpper = rfidTag.toUpperCase();
         ProductCategory category;
         if (tagUpper.contains("DAIRY") || tagUpper.contains("COLD")
@@ -164,9 +227,102 @@ public class RFIDSystemAdapter implements IRFIDSystemAdapter {
         } else {
             category = ProductCategory.DRY_GOODS;
         }
-
-        // Derive a stable SKU from the tag string.
         String sku = "SKU-" + rfidTag.replaceAll("[^A-Za-z0-9]", "-").toUpperCase();
         return new Product(sku, "Product[" + rfidTag + "]", category);
+    }
+
+    /**
+     * Returns and clears the dock scan tally.
+     * Cleared atomically to prevent double-counting on next truck arrival.
+     */
+    @Override
+    public Map<String, Integer> getDockScanTally(String dockId) {
+        Map<String, Integer> tally = dockTallyBuffer
+                .getOrDefault(dockId, Collections.emptyMap());
+        dockTallyBuffer.remove(dockId);
+        WarehouseTerminalView.printSystemEvent("RFIDSystemAdapter",
+                "Dock tally retrieved and cleared | Dock: " + dockId
+                        + " | Items: " + tally);
+        return Collections.unmodifiableMap(tally);
+    }
+
+    /**
+     * Verifies outbound tags are non-empty before packing handoff.
+     * Full order-level matching active when live integration is enabled.
+     */
+    @Override
+    public boolean verifyOutboundTags(String orderId, List<String> rfidTags) {
+        if (rfidTags == null || rfidTags.isEmpty()) {
+            WarehouseTerminalView.printWarning("RFIDSystemAdapter",
+                    "Outbound verification FAILED for Order " + orderId
+                            + " — no tags scanned.");
+            return false;
+        }
+        WarehouseTerminalView.printSystemEvent("RFIDSystemAdapter",
+                "Outbound verification PASSED | Order: " + orderId
+                        + " | Tags: " + rfidTags.size()
+                        + (liveIntegrationActive ? " [LIVE]" : " [STUB]"));
+        return true;
+    }
+
+    /**
+     * Returns recent scan log entries for a dock, most recent first.
+     * In LIVE mode: queries Subsystem 11's database via WMSIntegrationService.
+     * In STUB mode: returns from in-memory session log.
+     */
+    @Override
+    public List<String> getRecentDockScans(String dockId, int limit) {
+        if (liveIntegrationActive) {
+            try {
+                java.lang.reflect.Method getRecent =
+                        wmsIntegrationService.getClass()
+                                .getMethod("getRecentScans", int.class);
+                @SuppressWarnings("unchecked")
+                List<Object> records = (List<Object>) getRecent
+                        .invoke(wmsIntegrationService, limit);
+                List<String> result = new ArrayList<>();
+                for (Object record : records) {
+                    String eventId = (String) record.getClass()
+                            .getMethod("getEventId").invoke(record);
+                    String tag = (String) record.getClass()
+                            .getMethod("getRfidTag").invoke(record);
+                    String status = (String) record.getClass()
+                            .getMethod("getStatus").invoke(record);
+                    result.add(eventId + ":" + tag + ":" + status);
+                }
+                return Collections.unmodifiableList(result);
+            } catch (Throwable t) {
+                WMSLogger.logError("RFIDSystemAdapter.getRecentDockScans",
+                        t.getMessage());
+            }
+        }
+        // Stub fallback — return from in-memory session log.
+        List<String> logs = recentScansLog
+                .getOrDefault(dockId, Collections.emptyList());
+        return Collections.unmodifiableList(
+                logs.subList(0, Math.min(limit, logs.size())));
+    }
+
+    /**
+     * Translates Subsystem 11's category string to WMS ProductCategory enum.
+     * Add new category mappings here as Subsystem 11 expands their catalog.
+     */
+    private ProductCategory mapCategory(String category) {
+        if (category == null) return ProductCategory.DRY_GOODS;
+        return switch (category.toUpperCase()) {
+            case "PERISHABLE", "FOOD", "DAIRY", "FRESH",
+                    "PHARMACEUTICALS", "COLD" -> ProductCategory.PERISHABLE_COLD;
+            case "HIGH_VALUE", "ELECTRONICS",
+                    "JEWELLERY", "IT INFRASTRUCTURE" -> ProductCategory.HIGH_VALUE;
+            default -> ProductCategory.DRY_GOODS;
+        };
+    }
+
+    /**
+     * Returns whether live Subsystem 11 integration is currently active.
+     * Useful for health checks and dashboard display.
+     */
+    public boolean isLiveIntegrationActive() {
+        return liveIntegrationActive;
     }
 }

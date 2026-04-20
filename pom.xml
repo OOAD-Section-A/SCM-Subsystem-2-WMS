@@ -59,6 +59,19 @@
             <systemPath>${project.basedir}/lib/packing-subsystem-1.0-SNAPSHOT-all.jar</systemPath>
         </dependency>
 
+    <!--
+    Subsystem 11 (Barcode Reader and RFID Tracker) — local JAR.
+    WMS depends ONLY on com.nova.rfid.integration.WMSIntegrationService.
+    No other WMS class imports Subsystem 11 classes directly.
+    To update: replace JAR in lib/ — no other WMS changes needed.
+    -->
+    <dependency>
+        <groupId>com.nova</groupId>
+        <artifactId>rfid-tracker</artifactId>
+        <version>1.0.0</version>
+        <scope>system</scope>
+        <systemPath>${project.basedir}/lib/rfid-tracker-jar-with-dependencies.jar</systemPath>
+    </dependency>
     </dependencies>
 
     <build>
@@ -100,6 +113,10 @@
                         <!-- Shared SCM Database Module -->
                         <additionalClasspathElement>
                             ${project.basedir}/lib/database-module-1.0.0-SNAPSHOT-standalone.jar
+                        </additionalClasspathElement>
+                        <!-- Subsystem 11 RFID Tracker -->
+                        <additionalClasspathElement>
+                            ${project.basedir}/lib/rfid-tracker-jar-with-dependencies.jar
                         </additionalClasspathElement>
                     </additionalClasspathElements>
                 </configuration>
