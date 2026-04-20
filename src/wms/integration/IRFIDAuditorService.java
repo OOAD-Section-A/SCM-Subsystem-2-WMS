@@ -1,4 +1,4 @@
-package wms.services.integration;
+package wms.integration;
 
 import wms.exceptions.WMSException;
 import java.util.List;

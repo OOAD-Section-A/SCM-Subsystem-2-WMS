@@ -2,8 +2,8 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
 
+    <modelVersion>4.0.0</modelVersion>
     <groupId>com.scm</groupId>
     <artifactId>warehouse-management</artifactId>
     <version>1.0-SNAPSHOT</version>
@@ -14,23 +14,28 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
-    <build>
-        <sourceDirectory>src</sourceDirectory>
-    </build>
-
     <dependencies>
+
+        <!-- Apache POI — Excel parsing for DatabaseSeeder (procurement_final_dataset.xlsx) -->
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
             <version>5.2.3</version>
         </dependency>
 
+        <!-- MySQL JDBC driver — used by DatabaseConnectionManager and DatabaseSeeder -->
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
             <version>8.0.33</version>
         </dependency>
 
+        <!--
+            Subsystem 17 (Exception Handling) — local JAR.
+            Provides WarehouseMgmtSubsystem.INSTANCE for exception routing.
+            Referenced defensively via try-catch (Throwable) throughout WMS
+            to handle cases where the JAR is absent from the runtime classpath.
+        -->
         <dependency>
             <groupId>com.scm.exceptions</groupId>
             <artifactId>handler</artifactId>
@@ -39,7 +44,13 @@
             <systemPath>${project.basedir}/lib/scm-exception-handler-v3.jar</systemPath>
         </dependency>
 
-        <!-- Subsystem 14 (Packaging, Repairs, Receipt Management) integration JAR -->
+        <!--
+            Subsystem 14 (Packaging, Repairs, Receipt Management) — local JAR.
+            Provides WarehousePackingIntegrationService, PackingRequest, PackingRequestItem,
+            PackingStatusResponse, DatabaseLayerFactory, ExceptionDispatcherFactory.
+            Used exclusively by Subsystem14PackingAdapter — no other WMS class imports
+            Subsystem 14 classes directly (Anti-Corruption Layer pattern).
+        -->
         <dependency>
             <groupId>com.scm.packing</groupId>
             <artifactId>packing-subsystem</artifactId>
@@ -47,5 +58,54 @@
             <scope>system</scope>
             <systemPath>${project.basedir}/lib/packing-subsystem-1.0-SNAPSHOT-all.jar</systemPath>
         </dependency>
+
     </dependencies>
+
+    <build>
+        <sourceDirectory>src</sourceDirectory>
+        <plugins>
+
+            <!--
+                exec-maven-plugin — enables 'mvn exec:java' to run the application
+                without a long manual classpath command.
+
+                All system-scoped JARs from lib/ are added as additionalClasspathElements
+                so they are included at runtime (Maven excludes system-scoped JARs from
+                the exec plugin classpath by default).
+
+                Usage: mvn exec:java
+            -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.6.3</version>
+                <configuration>
+                    <mainClass>Main</mainClass>
+                    <includeProjectDependencies>true</includeProjectDependencies>
+                    <includePluginDependencies>false</includePluginDependencies>
+                    <classpathScope>runtime</classpathScope>
+                    <additionalClasspathElements>
+                        <!-- Subsystem 17 Exception Handler -->
+                        <additionalClasspathElement>
+                            ${project.basedir}/lib/scm-exception-handler-v3.jar
+                        </additionalClasspathElement>
+                        <!-- Subsystem 17 Exception GUI Viewer -->
+                        <additionalClasspathElement>
+                            ${project.basedir}/lib/scm-exception-viewer-gui.jar
+                        </additionalClasspathElement>
+                        <!-- Subsystem 14 Packing Integration -->
+                        <additionalClasspathElement>
+                            ${project.basedir}/lib/packing-subsystem-1.0-SNAPSHOT-all.jar
+                        </additionalClasspathElement>
+                        <!-- Shared SCM Database Module -->
+                        <additionalClasspathElement>
+                            ${project.basedir}/lib/database-module-1.0.0-SNAPSHOT-standalone.jar
+                        </additionalClasspathElement>
+                    </additionalClasspathElements>
+                </configuration>
+            </plugin>
+
+        </plugins>
+    </build>
+
 </project>
