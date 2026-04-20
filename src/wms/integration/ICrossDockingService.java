@@ -1,4 +1,4 @@
-package wms.services.integration;
+package wms.integration;
 
 import wms.models.Product;
 
