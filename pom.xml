@@ -72,6 +72,24 @@
         <scope>system</scope>
         <systemPath>${project.basedir}/lib/rfid-tracker-jar-with-dependencies.jar</systemPath>
     </dependency>
+
+    <!-- JNA — required by updated Subsystem 17 for Windows Event Viewer integration -->
+    <dependency>
+        <groupId>net.java.dev.jna</groupId>
+        <artifactId>jna</artifactId>
+        <version>5.18.1</version>
+        <scope>system</scope>
+        <systemPath>${project.basedir}/lib/jna-5.18.1.jar</systemPath>
+    </dependency>
+
+    <!-- JNA Platform — required by updated Subsystem 17 for Windows Event Viewer integration -->
+    <dependency>
+        <groupId>net.java.dev.jna</groupId>
+        <artifactId>jna-platform</artifactId>
+        <version>5.18.1</version>
+        <scope>system</scope>
+        <systemPath>${project.basedir}/lib/jna-platform-5.18.1.jar</systemPath>
+    </dependency>
     </dependencies>
 
     <build>
@@ -93,7 +111,6 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.6.3</version>
                 <configuration>
-                    <mainClass>Main</mainClass>
                     <includeProjectDependencies>true</includeProjectDependencies>
                     <includePluginDependencies>false</includePluginDependencies>
                     <classpathScope>runtime</classpathScope>
@@ -118,6 +135,13 @@
                         <additionalClasspathElement>
                             ${project.basedir}/lib/rfid-tracker-jar-with-dependencies.jar
                         </additionalClasspathElement>
+                        <!-- JNA for Subsystem 17 Windows Event Viewer -->
+                    <additionalClasspathElement>
+                        ${project.basedir}/lib/jna-5.18.1.jar
+                    </additionalClasspathElement>
+                    <additionalClasspathElement>
+                        ${project.basedir}/lib/jna-platform-5.18.1.jar
+                    </additionalClasspathElement>
                     </additionalClasspathElements>
                 </configuration>
             </plugin>
