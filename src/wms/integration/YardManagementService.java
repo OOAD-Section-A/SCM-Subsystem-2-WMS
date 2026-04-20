@@ -1,7 +1,6 @@
 package wms.integration;
 
 import wms.exceptions.WMSException;
-import wms.services.WMSLogger;
 import wms.views.WarehouseTerminalView;
 
 import java.util.HashMap;
@@ -47,16 +46,8 @@ public class YardManagementService implements IYardManagementService {
         if (occupiedDocks.containsKey(assignedDock)) {
             String existingShipment = occupiedDocks.get(assignedDock);
 
-            // Notify Subsystem 17 (Exception Handling) of the dock conflict.
-            // Accessed defensively — JAR may not be on runtime classpath.
-            try {
-                com.scm.subsystems.WarehouseMgmtSubsystem.INSTANCE
-                        .onDockDoubleBooking(assignedDock, existingShipment, shipmentId);
-            } catch (Throwable t) {
-                // JAR unavailable at runtime — log and continue.
-                WMSLogger.logError("YardManagementService.handleGeofenceArrival",
-                        "Subsystem 17 unavailable for dock conflict notification: " + t.getMessage());
-            }
+        // Route through SafeExceptionAdapter — the single Subsystem 17 integration point.
+        SafeExceptionAdapter.onDockDoubleBooking(assignedDock, existingShipment, shipmentId);
 
             throw new WMSException("Dock assignment conflict: " + assignedDock
                     + " already occupied by shipment " + existingShipment);

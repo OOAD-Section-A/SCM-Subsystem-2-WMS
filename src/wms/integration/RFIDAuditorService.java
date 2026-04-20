@@ -1,7 +1,6 @@
 package wms.integration;
 
 import wms.exceptions.WMSException;
-import wms.services.WMSLogger;
 import wms.views.WarehouseTerminalView;
 
 import java.util.List;
@@ -56,13 +55,8 @@ public class RFIDAuditorService implements IRFIDAuditorService {
                 "DISCREPANCY in " + binId + " | Expected: " + expectedQty
                         + " | Scanned: " + scannedCount);
 
-        try {
-            com.scm.subsystems.WarehouseMgmtSubsystem.INSTANCE
-                    .onCycleCountDiscrepancy(binId, expectedQty, scannedCount);
-        } catch (Throwable t) {
-            WMSLogger.logError("RFIDAuditorService.auditBin",
-                    "Subsystem 17 unavailable for discrepancy notification: " + t.getMessage());
-        }
+        // Route through SafeExceptionAdapter — the single Subsystem 17 integration point.
+        SafeExceptionAdapter.onCycleCountDiscrepancy(binId, expectedQty, scannedCount);
 
         throw new WMSException("Cycle count discrepancy in " + binId
                 + ". Expected: " + expectedQty + ", Scanned: " + scannedCount);

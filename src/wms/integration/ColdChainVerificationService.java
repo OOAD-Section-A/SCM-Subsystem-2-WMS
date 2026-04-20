@@ -1,7 +1,6 @@
 package wms.integration;
 
 import wms.exceptions.WMSException;
-import wms.services.WMSLogger;
 import wms.views.WarehouseTerminalView;
 
 /**
@@ -67,17 +66,8 @@ public class ColdChainVerificationService implements IColdChainVerificationServi
                         + " | Temp: " + rfidTempReading + "C (within limit)");
     }
 
-    /**
-     * Notifies Subsystem 17 of damaged goods detection.
-     * Wrapped in try-catch — JAR may be absent from runtime classpath.
-     */
     private void notifySubsystem17DamagedGoods(String sku, String dockId) {
-        try {
-            com.scm.subsystems.WarehouseMgmtSubsystem.INSTANCE
-                    .onDamagedGoodsDetected(sku, dockId);
-        } catch (Throwable t) {
-            WMSLogger.logError("ColdChainVerificationService.notifySubsystem17",
-                    "Subsystem 17 unavailable: " + t.getMessage());
-        }
+    // Route through SafeExceptionAdapter — the single Subsystem 17 integration point.
+    SafeExceptionAdapter.onDamagedGoodsDetected(sku, dockId);
     }
 }
