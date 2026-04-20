@@ -16,6 +16,9 @@ lib/database.properties
 # Exception: small, essential JARs (exception handler, GUI viewer) ARE committed.
 lib/packing-subsystem-1.0-SNAPSHOT-all.jar
 lib/database-module-1.0.0-SNAPSHOT-standalone.jar
+lib/rfid-tracker-jar-with-dependencies.jar
+lib/jna-5.18.1.jar
+lib/jna-platform-5.18.1.jar
 
 # ─── Local Utility Files ─────────────────────────────────────────────────────
 # Generated locally for developer convenience. Not part of the project source.
@@ -28,3 +31,6 @@ sources.txt
 *.iml
 .DS_Store
 Thumbs.db
+
+# Local JVM config — contains DB credentials, never commit
+.mvn/jvm.config
