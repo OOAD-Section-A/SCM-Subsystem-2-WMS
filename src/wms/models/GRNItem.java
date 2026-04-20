@@ -21,4 +21,5 @@ public class GRNItem {
 
     public int getAcceptedQty() { return acceptedQty; }
     public int getDamagedQty() { return damagedQty; }
+    public String getProductId() { return productId; }
 }

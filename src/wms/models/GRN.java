@@ -25,4 +25,5 @@ public class GRN {
 
     public String getGrnId() { return grnId; }
     public GRNItem getItem(String sku) { return items.get(sku); }
+    public Map<String, GRNItem> getItems() { return items; }
 }

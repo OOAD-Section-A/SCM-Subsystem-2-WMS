@@ -133,11 +133,13 @@ public class DatabaseSeeder {
 
         // 5. Hardcoded WMS Data for Outbound Poller Demo
         try (Statement stmt = conn.createStatement()) {
+            // Insert prerequisite zone with valid enum value
             stmt.execute("INSERT IGNORE INTO warehouse_zones (zone_id, warehouse_id, zone_type) VALUES ('PICK_ZONE', 'W-01', 'PICKING')");
-            stmt.execute("INSERT IGNORE INTO bins (binId, zone_id, bin_capacity) VALUES ('A1', 'PICK_ZONE', 100)");
-            stmt.execute("INSERT IGNORE INTO bins (binId, zone_id, bin_capacity) VALUES ('B2', 'PICK_ZONE', 100)");
-            stmt.execute("INSERT IGNORE INTO warehouse_tasks (taskId, taskType, productId, targetBinId, status) VALUES ('T-100', 'PICK', 'P-50', 'A1', 'PENDING')");
-            stmt.execute("INSERT IGNORE INTO warehouse_tasks (taskId, taskType, productId, targetBinId, status) VALUES ('T-ERR', 'PICK', 'P-99', 'B2', 'PENDING')");
+            // Fix: use bin_id (snake_case) not binId (camelCase) per schema
+            stmt.execute("INSERT IGNORE INTO bins (bin_id, zone_id, bin_capacity, bin_status) VALUES ('A1', 'PICK_ZONE', 100, 'AVAILABLE')");
+            stmt.execute("INSERT IGNORE INTO bins (bin_id, zone_id, bin_capacity, bin_status) VALUES ('B2', 'PICK_ZONE', 100, 'AVAILABLE')");
+            // NOTE: warehouse_tasks does not exist in the shared schema.
+            // T-100 and T-ERR are simulated by SCMDatabaseAdapter.fetchPendingTasks() in memory.
         } catch (Exception e) {
             // Silently ignore if already exists
         }
