@@ -45,10 +45,13 @@ public class OutboundTaskController implements Runnable {
 						int count = retryCounts.getOrDefault(task.getTaskId(), 0) + 1;
 						retryCounts.put(task.getTaskId(), count);
 
-						if (count >= 3) {
-							WarehouseTerminalView.printError("DLQ", "Task " + task.getTaskId() + " failed 3 times. Routing to Subsystem 17.", e);
-							repository.updateTaskStatus(task.getTaskId(), "FAILED");
-							SafeExceptionAdapter.handle(e);
+					  if (count >= 3) {
+						WarehouseTerminalView.printError("DLQ", "Task " + task.getTaskId() + " failed 3 times. Routing to Subsystem 17.", e);
+						repository.updateTaskStatus(task.getTaskId(), "FAILED");
+						// Notify floor supervisors that this task requires manual packing intervention.
+						WarehouseTerminalView.printWarning("DLQ", "Task " + task.getTaskId() + " sent to Dead Letter Queue — MANUAL STAGING required at Subsystem 14.");
+						SafeExceptionAdapter.handle(e);
+						
 						} else {
 							WarehouseTerminalView.printWarning("DLQ", "Task " + task.getTaskId() + " failed. Retrying attempt " + count);
 						}
