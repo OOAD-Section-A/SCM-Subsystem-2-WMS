@@ -4,18 +4,23 @@ import java.util.Map;
 import wms.contracts.IWMSRepository;
 import wms.contracts.WarehouseSubsystemBase;
 import wms.exceptions.WMSException;
+import wms.integration.IRFIDSystemAdapter;
 
 public class WarehouseFacade extends WarehouseSubsystemBase {
 
     private InventoryManager inventoryManager;
     private OrderPickingEngine pickingEngine;
     private wms.services.TaskEngine taskEngine;
+    // Adapter for Subsystem 11 (Barcode Reader and RFID Tracker).
+    // Injected via constructor — WMS never depends on the concrete RFID class directly.
+    private final IRFIDSystemAdapter rfidAdapter;
 
-    public WarehouseFacade(IWMSRepository repository) {
-        super(repository);
-        this.inventoryManager = new InventoryManager();
-        this.pickingEngine = new OrderPickingEngine();
-        this.taskEngine = new wms.services.TaskEngine();
+   public WarehouseFacade(IWMSRepository repository, IRFIDSystemAdapter rfidAdapter) {
+    super(repository);
+    this.inventoryManager = new InventoryManager();
+    this.pickingEngine = new OrderPickingEngine();
+    this.taskEngine = new wms.services.TaskEngine();
+    this.rfidAdapter = rfidAdapter;
     }
 
     public wms.services.TaskEngine getTaskEngine() {
@@ -54,8 +59,35 @@ public class WarehouseFacade extends WarehouseSubsystemBase {
         catch (WMSException e) { return false; }
     }
 
+        /**
+     * Processes a single RFID or barcode scan at a dock during inbound receiving.
+     *
+     * Delegates to IRFIDSystemAdapter (Subsystem 11 integration) for tag validation
+     * and product lookup. Accumulates scan counts in the adapter's dock tally buffer.
+     * InboundReceivingController calls getDockScanTally() after all items are scanned
+     * to reconcile physical counts against the ASN.
+     *
+     * GRASP — Controller: WarehouseFacade coordinates the scan flow without
+     * owning the RFID logic itself.
+     * SOLID — Dependency Inversion: depends on IRFIDSystemAdapter interface,
+     * not on any Subsystem 11 concrete class.
+     *
+     * @param barcode  RFID tag or barcode string read by the scanner
+     * @param dockId   Dock door identifier where the scan occurred (e.g., "Dock-A")
+     */
     @Override
-    public void processInboundScan(String barcode, String dockId) {}
+    public void processInboundScan(String barcode, String dockId) {
+        // Delegate to RFID adapter — it validates the tag, identifies the product,
+        // and accumulates the count in its internal dock tally buffer.
+        wms.models.Product product = rfidAdapter.processTagScan(barcode, dockId);
+
+        if (product == null) {
+            // Unknown or invalid tag — already logged by the adapter.
+            // No corrective action taken here per exception handling policy.
+            wms.views.WarehouseTerminalView.printWarning("WarehouseFacade",
+                    "Scan ignored at " + dockId + " — unresolvable tag: " + barcode);
+        }
+    }
 
     public void receiveAndStoreProduct(wms.models.Product product, int quantity) {
         System.out.println("Facade: Receiving product - " + product.getName() + " (Qty: " + quantity + ")");
