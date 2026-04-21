@@ -90,6 +90,15 @@
         <scope>system</scope>
         <systemPath>${project.basedir}/lib/jna-platform-5.18.1.jar</systemPath>
     </dependency>
+
+    <!-- Subsystem 8 (Demand Forecasting) — local JAR -->
+    <dependency>
+        <groupId>com.forecast</groupId>
+        <artifactId>demand-forecasting</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <scope>system</scope>
+        <systemPath>${project.basedir}/lib/demand-forecasting-1.0-SNAPSHOT.jar</systemPath>
+    </dependency>
     </dependencies>
 
     <build>
@@ -141,6 +150,10 @@
                     </additionalClasspathElement>
                     <additionalClasspathElement>
                         ${project.basedir}/lib/jna-platform-5.18.1.jar
+                    </additionalClasspathElement>
+                    <!-- Subsystem 8 Demand Forecasting -->
+                    <additionalClasspathElement>
+                        ${project.basedir}/lib/demand-forecasting-1.0-SNAPSHOT.jar
                     </additionalClasspathElement>
                     </additionalClasspathElements>
                 </configuration>
