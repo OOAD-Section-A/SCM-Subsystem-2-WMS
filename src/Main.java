@@ -18,6 +18,7 @@ import wms.observers.ReplenishmentService;
 import wms.services.SlottingOptimizerService;
 import wms.services.WarehouseFacade;
 import wms.views.WarehouseTerminalView;
+import wms.integration.TMSIntegrationService;
 
 public class Main {
     public static void main(String[] args) {
@@ -106,6 +107,15 @@ public class Main {
         InboundReceivingController inboundController = new InboundReceivingController(wmsFacade);
         WarehouseTerminalView.printSystemEvent("BOOT",
                 "InboundReceivingController ready.");
+
+        // ── STEP 10B: SUBSYSTEM 6 — TMS INTEGRATION SERVICE ───────────────────────
+        // Singleton event store that TMS polls for shipment ready and rejection events.
+        // WMS publishes events here; TMS consumes them independently.
+        // Zero coupling — WMS never imports or references any TMS class.
+        // PATTERN: Facade + Observer (polling) | GRASP: Low Coupling
+        TMSIntegrationService tmsService = TMSIntegrationService.getInstance();
+        WarehouseTerminalView.printSystemEvent("BOOT",
+        "TMS Integration Service ready. " + tmsService.getQueueStatus());
 
         // ── STEP 11: OUTBOUND TASK POLLER (Async Background Thread) ──────────
         // Background Runnable polling pending tasks from the repository.
