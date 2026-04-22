@@ -358,7 +358,7 @@ public class DatabaseSeeder {
 
         // ── EXCEPTION LOG SEED ────────────────────────────────────────────────
         try (java.sql.PreparedStatement ps = conn.prepareStatement(
-                "INSERT IGNORE INTO SCM_EXCEPTION_LOG (exception_id, exception_name, severity, subsystem, error_message, logged_at) VALUES (?, ?, ?, ?, ?, ?)")) {
+                "INSERT IGNORE INTO scm_exception_log (exception_id, exception_name, severity, subsystem, error_message, logged_at) VALUES (?, ?, ?, ?, ?, ?)")) {
             ps.setInt(1, 500);
             ps.setString(2, "InsufficientStockForPick");
             ps.setString(3, "MAJOR");
