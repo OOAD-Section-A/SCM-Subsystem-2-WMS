@@ -158,6 +158,21 @@
                     </additionalClasspathElements>
                 </configuration>
             </plugin>
+       <!-- Creates wms-subsystem-2.jar for other teams to integrate with WMS -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.3.0</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>Main</mainClass>
+                        </manifest>
+                    </archive>
+                    <finalName>wms-subsystem-2</finalName>
+                    <outputDirectory>${project.basedir}/dist</outputDirectory>
+                </configuration>
+            </plugin>
 
         </plugins>
     </build>

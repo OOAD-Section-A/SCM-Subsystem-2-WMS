@@ -34,3 +34,7 @@ Thumbs.db
 
 # Local JVM config — contains DB credentials, never commit
 .mvn/jvm.config
+
+# WMS output JAR — committed so other teams can depend on it
+!dist/
+!dist/*.jar

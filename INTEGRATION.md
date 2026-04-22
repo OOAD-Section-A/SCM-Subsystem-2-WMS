@@ -1,7 +1,46 @@
 # WMS Integration Guide
 ## Subsystem 2 — Warehouse Management System
 
-This is the single reference document for any subsystem integrating with WMS. Read this before writing any integration code.
+This is the single reference document for any subsystem integrating with WMS.
+Read this before writing any integration code.
+
+---
+
+## Using the WMS JAR
+
+A prebuilt integration JAR is provided at `dist/wms-subsystem-2.jar`.
+Add it to your classpath to import WMS classes directly.
+
+**Maven (system scope):**
+```xml
+<dependency>
+    <groupId>com.scm.wms</groupId>
+    <artifactId>warehouse-management</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <scope>system</scope>
+    <systemPath>${project.basedir}/lib/wms-subsystem-2.jar</systemPath>
+</dependency>
+```
+
+**Manual classpath:**
+```cmd
+javac -cp "wms-subsystem-2.jar" YourClass.java
+java  -cp "wms-subsystem-2.jar;." YourClass
+```
+
+**Key classes available in the JAR:**
+
+| Class | Package | Purpose |
+|---|---|---|
+| `WarehouseFacade` | `wms.services` | Main WMS entry point |
+| `TMSIntegrationService` | `wms.integration` | Shipment event polling for TMS |
+| `ITMSIntegrationService` | `wms.integration` | TMS polling interface |
+| `ShipmentReadyEvent` | `wms.integration` | Shipment event data object |
+| `ShipmentReadyEvent.ShipmentItem` | `wms.integration` | Line item within a shipment |
+| `WarehouseParameters` | `wms.models` | Warehouse config for Demand Forecasting |
+| `ReplenishmentOrder` | `wms.models` | Replenishment PO model |
+| `Product` | `wms.models` | WMS product domain model |
+| `ProductCategory` | `wms.models` | Enum: DRY_GOODS, PERISHABLE_COLD, HIGH_VALUE |
 
 ---
 
@@ -44,7 +83,10 @@ This is the single reference document for any subsystem integrating with WMS. Re
 
 WMS publishes shipment events that TMS polls. Zero coupling — WMS never imports any TMS class.
 
-**Access the event store:**
+**Step 1 — Add the JAR:**
+Copy `dist/wms-subsystem-2.jar` to your project and add it to your classpath.
+
+**Step 2 — Access the event store:**
 
 ```java
 import wms.integration.TMSIntegrationService;
@@ -52,16 +94,16 @@ import wms.integration.ShipmentReadyEvent;
 
 TMSIntegrationService tms = TMSIntegrationService.getInstance();
 
-// Poll for ready shipments
+// Poll for ready shipments (READY_FOR_PICKUP)
 List<ShipmentReadyEvent> ready = tms.getReadyShipments();
 
-// Poll for rejections
+// Poll for rejections (CANNOT_SHIP)
 List<ShipmentReadyEvent> rejected = tms.getRejectedShipments();
 
 // Full details for one shipment
 ShipmentReadyEvent details = tms.getShipmentDetails("SHIP001");
 
-// Remove from queue after processing
+// Remove from queue after processing — prevents duplicate polling
 tms.acknowledgeShipment("SHIP001");
 ```
 
@@ -92,7 +134,8 @@ tms.acknowledgeShipment("SHIP001");
 
 ### Subsystem 8 — Demand Forecasting
 
-WMS exposes stable method signatures on `WarehouseFacade` for reflection-based binding. These signatures will not change.
+WMS exposes stable method signatures on `WarehouseFacade` for reflection-based binding.
+These signatures are committed and will not change.
 
 **Stable signatures:**
 
@@ -139,16 +182,17 @@ void receiveAndStoreProduct(wms.models.Product product, int quantity)
 | `currentUtilization` | 0.65 | Currently 65% full |
 
 **Urgency level behaviour in `recordReplenishmentOrder`:**
-- `LOW` / `MEDIUM` — auto-approved, status set to `AUTO_APPROVED`
+- `LOW` / `MEDIUM` — auto-approved immediately, status set to `AUTO_APPROVED`
 - `HIGH` / `CRITICAL` — flagged for manual review, status set to `PENDING_REVIEW`
 
-Please ensure CRITICAL urgency orders are only pushed after manual approval on your side.
+Ensure CRITICAL urgency orders are only pushed after manual approval on your side.
 
 ---
 
 ### Subsystem 11 — Barcode Reader and RFID Tracker
 
-WMS loads `WMSIntegrationService` from the RFID JAR at runtime via reflection. When the RFID database is unreachable, WMS falls back to stub mode automatically — no crash, no manual intervention.
+WMS loads `WMSIntegrationService` from the RFID JAR at runtime via reflection.
+When the RFID database is unreachable WMS falls back to stub mode automatically — no crash.
 
 **What must stay stable in your JAR:**
 
@@ -164,16 +208,20 @@ public List<ScanRecord> getRecentScans(int limit)
 public int[] getTodaySummary()
 ```
 
-**Constructor requirement:** The constructor must catch all failures from `RFIDSystemFacade.getInstance()` and still return a valid instance with `facade = null`. Each method must null-check facade before use. Without this, WMS cannot initialize when inventory classes are absent from WMS classpath.
+**Constructor requirement:**
+The constructor must catch all failures from `RFIDSystemFacade.getInstance()` and still
+return a valid instance with `facade = null`. Each method must null-check facade before use.
 
-**Critical rule:** WMS owns all inventory updates. `submitScan()` must never call `AddStockStrategy`. Every stock update goes through WMS exclusively.
+**Critical rule:**
+WMS owns all inventory updates. `submitScan()` must never call `AddStockStrategy`.
+Every stock update goes through WMS exclusively.
 
-**Boot output when live mode is active:**
+**Boot output — live mode:**
 ```
 [SYSTEM | RFIDSystemAdapter] LIVE mode active — connected to Subsystem 11 (WMSIntegrationService).
 ```
 
-**Boot output when stub mode is active (database unreachable):**
+**Boot output — stub mode (database unreachable):**
 ```
 [WARNING | RFIDSystemAdapter] STUB mode — Subsystem 11 environment not reachable. Reason: ...
 ```
@@ -182,10 +230,11 @@ public int[] getTodaySummary()
 
 ### Subsystem 14 — Packing, Repairs, Receipt Management
 
-WMS creates a packing job automatically for every completed outbound pick task. No action needed from Subsystem 14 beyond providing their JAR.
+WMS creates a packing job automatically for every completed outbound pick task.
+No action needed from Subsystem 14 beyond providing their JAR.
 
 **What WMS sends:**
-- Packing job creation with: task ID, bin ID, product ID, order ID
+- Packing job creation: task ID, bin ID, product ID, order ID
 - Packing job status updates: COMPLETED, FAILED
 
 **Boot output when connected:**
@@ -197,7 +246,8 @@ WMS creates a packing job automatically for every completed outbound pick task. 
 
 ### Subsystem 15 — Database Design
 
-WMS accesses the shared OOAD database exclusively through `WarehouseManagementAdapter`. No direct JDBC or custom SQL is used for shared tables.
+WMS accesses the shared OOAD database exclusively through `WarehouseManagementAdapter`.
+No direct JDBC or custom SQL is used for shared tables.
 
 **JAR required:** `database-module-1.0.0-SNAPSHOT-standalone.jar`
 
@@ -217,9 +267,12 @@ WMS accesses the shared OOAD database exclusively through `WarehouseManagementAd
 | `staging_dispatch` | After gate pass approval |
 
 **Tables seeded from Excel at boot via `DatabaseSeeder`:**
-`proc_suppliers`, `products`, `proc_product_supplier`, `proc_purchase_orders`, `proc_po_items`, `proc_asn`, `goods_receipts`, `proc_quality_inspections`, `proc_supplier_invoices`, `proc_invoice_items`, `proc_supplier_payments`, `proc_discrepancies`
 
-**Data source:** `procurement_final_dataset.xlsx` — must be in project root directory.
+`proc_suppliers`, `products`, `proc_product_supplier`, `proc_purchase_orders`,
+`proc_po_items`, `proc_asn`, `goods_receipts`, `proc_quality_inspections`,
+`proc_supplier_invoices`, `proc_invoice_items`, `proc_supplier_payments`, `proc_discrepancies`
+
+**Data source:** `procurement_final_dataset.xlsx` — must be in the project root directory.
 
 **Boot output when online:**
 ```
@@ -232,7 +285,9 @@ WMS accesses the shared OOAD database exclusively through `WarehouseManagementAd
 
 ### Subsystem 17 — Exception Handling
 
-WMS routes all 12 registered WMS exceptions through `SafeExceptionAdapter` to Subsystem 17. Exceptions appear as blocking popups, in Windows Event Viewer under `SCM-WarehouseMgmt`, and in the Exception Viewer GUI.
+WMS routes all 12 registered WMS exceptions through `SafeExceptionAdapter` to Subsystem 17.
+Exceptions appear as blocking popups, in Windows Event Viewer under `SCM-WarehouseMgmt`,
+and in the Exception Viewer GUI.
 
 **One-time setup — run as Administrator:**
 ```cmd
@@ -240,10 +295,13 @@ reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\EventLog\Applicati
 ```
 
 **JARs required in `lib/`:**
-- `scm-exception-handler-v3.jar` ← committed to repository
-- `scm-exception-viewer-gui.jar` ← committed to repository
-- `jna-5.18.1.jar` ← get from Subsystem 17 team
-- `jna-platform-5.18.1.jar` ← get from Subsystem 17 team
+
+| JAR | Committed | Notes |
+|---|---|---|
+| `scm-exception-handler-v3.jar` | Yes | Already in repository |
+| `scm-exception-viewer-gui.jar` | Yes | Already in repository |
+| `jna-5.18.1.jar` | No | Get from Subsystem 17 team |
+| `jna-platform-5.18.1.jar` | No | Get from Subsystem 17 team |
 
 **All 12 registered WMS exceptions:**
 
@@ -255,7 +313,7 @@ reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\EventLog\Applicati
 | 107 | CONCURRENT_UPDATE_CONFLICT | MINOR | Two workers updating the same product simultaneously |
 | 152 | INSUFFICIENT_STOCK_FOR_PICK | MAJOR | Pick task quantity exceeds available stock |
 | 153 | STOCK_UNDERFLOW | MAJOR | Reservation would push quantity below zero |
-| 154 | BIN_CAPACITY_EXCEEDED | MAJOR | Putaway exceeds bin's maximum capacity |
+| 154 | BIN_CAPACITY_EXCEEDED | MAJOR | Putaway exceeds bin maximum capacity |
 | 155 | BIN_NOT_FOUND_OR_BLOCKED | MAJOR | Task targets a missing or maintenance-blocked bin |
 | 156 | DOCK_DOUBLE_BOOKING | MAJOR | Two shipments assigned to the same dock door |
 | 313 | CYCLE_COUNT_DISCREPANCY | WARNING | RFID physical count differs from system count |
@@ -268,7 +326,7 @@ cd lib
 java -cp ".;scm-exception-viewer-gui.jar;scm-exception-handler-v3.jar;jna-5.18.1.jar;jna-platform-5.18.1.jar" com.scm.gui.ExceptionViewerGUI
 ```
 
-**Run Exception Demo (triggers all 12 exceptions):**
+**Run Exception Demo — triggers all 12 exceptions:**
 ```cmd
 mvn exec:java -Dexec.mainClass="wms.demo.ExceptionDemo"
 ```
@@ -278,14 +336,14 @@ mvn exec:java -Dexec.mainClass="wms.demo.ExceptionDemo"
 ## Running WMS
 
 ### Prerequisites
-- JDK 17 or higher on PATH
+- JDK 17 or higher
 - Maven 3.9+
 - MySQL 8.0 running on localhost
-- All JARs in `lib/` (see JAR Inventory section)
+- All JARs in `lib/` (see JAR Inventory below)
 - `lib/database.properties` created with your credentials
 - `.mvn/jvm.config` created with your credentials
 
-### Credential Files (Gitignored — Create Manually)
+### Credential Files (Gitignored — Must Be Created Manually)
 
 **`lib/database.properties`:**
 ```properties
@@ -309,24 +367,29 @@ mvn clean compile
 # Run main application
 mvn exec:java -Dexec.mainClass="Main"
 
-# Run exception demo
+# Run exception demo (all 12 exceptions)
 mvn exec:java -Dexec.mainClass="wms.demo.ExceptionDemo"
+
+# Rebuild integration JAR after source changes
+mvn clean package -DskipTests
+copy target\warehouse-management-1.0-SNAPSHOT.jar dist\wms-subsystem-2.jar
 ```
 
 ---
 
 ## JAR Inventory
 
-| JAR File | Committed | Source |
-|---|---|---|
-| `scm-exception-handler-v3.jar` | Yes | Subsystem 17 |
-| `scm-exception-viewer-gui.jar` | Yes | Subsystem 17 |
-| `packing-subsystem-1.0-SNAPSHOT-all.jar` | No — gitignored | Subsystem 14 |
-| `database-module-1.0.0-SNAPSHOT-standalone.jar` | No — gitignored | Subsystem 15 |
-| `rfid-tracker-jar-with-dependencies.jar` | No — gitignored | Subsystem 11 |
-| `jna-5.18.1.jar` | No — gitignored | Subsystem 17 |
-| `jna-platform-5.18.1.jar` | No — gitignored | Subsystem 17 |
-| `demand-forecasting-1.0-SNAPSHOT.jar` | No — gitignored | Subsystem 8 |
+| JAR File | Location | Committed | Source |
+|---|---|---|---|
+| `wms-subsystem-2.jar` | `dist/` | Yes | Built from this repo — for other teams |
+| `scm-exception-handler-v3.jar` | `lib/` | Yes | Subsystem 17 |
+| `scm-exception-viewer-gui.jar` | `lib/` | Yes | Subsystem 17 |
+| `packing-subsystem-1.0-SNAPSHOT-all.jar` | `lib/` | No — gitignored | Subsystem 14 |
+| `database-module-1.0.0-SNAPSHOT-standalone.jar` | `lib/` | No — gitignored | Subsystem 15 |
+| `rfid-tracker-jar-with-dependencies.jar` | `lib/` | No — gitignored | Subsystem 11 |
+| `jna-5.18.1.jar` | `lib/` | No — gitignored | Subsystem 17 |
+| `jna-platform-5.18.1.jar` | `lib/` | No — gitignored | Subsystem 17 |
+| `demand-forecasting-1.0-SNAPSHOT.jar` | `lib/` | No — gitignored | Subsystem 8 |
 
 Gitignored JARs must be obtained directly from the respective subsystem teams.
 
@@ -352,8 +415,8 @@ Gitignored JARs must be obtained directly from the respective subsystem teams.
 | Step | Component | Why This Order |
 |---|---|---|
 | 1 | Subsystem 14 Packing Adapter | Initialises DB layer factory first |
-| 2 | Subsystem 15 DB Adapter | Bootstraps OOAD schema |
-| 3 | DatabaseSeeder | Seeds Excel data into fresh schema |
+| 2 | Subsystem 15 DB Adapter | Bootstraps OOAD schema if not exists |
+| 3 | DatabaseSeeder | Seeds Excel data into stable schema |
 | 4 | Repository layer | SCMDatabaseAdapter + ResilientRepositoryProxy |
 | 5 | Subsystem 11 RFID Adapter | Reflection loader — independent |
 | 6 | WarehouseFacade | Depends on RFID adapter |
@@ -366,13 +429,13 @@ Gitignored JARs must be obtained directly from the respective subsystem teams.
 
 ### Sacred Architecture — Never Modify
 
-These components have specific structural requirements that must not be changed:
-
-- **`DatabaseSeeder`** — FK-ordered inserts, INSERT IGNORE throughout, Excel sheet order matters
-- **`SafeExceptionAdapter`** — All JAR calls wrapped in `SwingUtilities.invokeLater` + `Throwable` catch
-- **`ResilientRepositoryProxy`** — Circuit breaker with primary + in-memory fallback
-- **`OutboundTaskController`** — 4-poll loop, `retryCounts` HashMap, DLQ after exactly 3 failures
-- **`IPickingStrategy`** — Two methods: `generatePickList(Order)` + `optimizePickPath(List)`
+| Component | Constraint |
+|---|---|
+| `DatabaseSeeder` | FK-ordered inserts, INSERT IGNORE throughout, Excel sheet order matters |
+| `SafeExceptionAdapter` | All JAR calls in `SwingUtilities.invokeLater` + `Throwable` catch |
+| `ResilientRepositoryProxy` | Circuit breaker with primary + in-memory fallback |
+| `OutboundTaskController` | 4-poll loop, `retryCounts` HashMap, DLQ after exactly 3 failures |
+| `IPickingStrategy` | Two methods: `generatePickList(Order)` + `optimizePickPath(List)` |
 
 ### Design Patterns Applied
 
@@ -390,19 +453,30 @@ These components have specific structural requirements that must not be changed:
 ### Package Structure
 
 ```
-src/
-├── Main.java                    — Composition root, boot sequence
-└── wms/
-    ├── commands/                — Task command objects (Command pattern)
-    ├── contracts/               — IWMSRepository, WarehouseSubsystemBase
-    ├── controllers/             — InboundReceivingController, OutboundTaskController
-    ├── demo/                    — ExceptionDemo (standalone, all 12 exceptions)
-    ├── exceptions/              — WMSException, WmsCoreException and subtypes
-    ├── factories/               — StorageUnitFactory
-    ├── integration/             — All adapters, TMS service, RFID adapter, DB adapter
-    ├── models/                  — Domain models: Product, GRN, Order, WarehouseParameters, etc.
-    ├── observers/               — IInventoryObserver, ReplenishmentService
-    ├── services/                — WarehouseFacade, InventoryManager, TaskEngine, etc.
-    ├── strategies/              — IPickingStrategy, IPutawayStrategy and implementations
-    └── views/                   — WarehouseTerminalView (console output)
+SCM-Subsystem-2-WMS/
+├── INTEGRATION.md               — This file
+├── README.md                    — Project overview
+├── pom.xml                      — Maven build config
+├── procurement_final_dataset.xlsx — Seed data (14 sheets, 12 DB tables)
+├── dist/
+│   └── wms-subsystem-2.jar      — Prebuilt JAR for other subsystems
+├── lib/
+│   ├── scm-exception-handler-v3.jar   — Subsystem 17 (committed)
+│   ├── scm-exception-viewer-gui.jar   — Subsystem 17 (committed)
+│   └── scm-gui.properties             — Exception viewer config (committed)
+└── src/
+    ├── Main.java                — Composition root, 12-step boot sequence
+    └── wms/
+        ├── commands/            — Command pattern task objects
+        ├── contracts/           — Repository interfaces
+        ├── controllers/         — Inbound and outbound flow controllers
+        ├── demo/                — ExceptionDemo standalone class
+        ├── exceptions/          — WMS exception hierarchy
+        ├── factories/           — StorageUnitFactory
+        ├── integration/         — All subsystem adapters and services
+        ├── models/              — Domain model classes
+        ├── observers/           — Observer pattern implementations
+        ├── services/            — Core WMS services and facade
+        ├── strategies/          — Picking and putaway strategy implementations
+        └── views/               — Console output formatting
 ```
